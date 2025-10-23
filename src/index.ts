@@ -1,11 +1,16 @@
+// 首先加载环境变量
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express, { Request, Response } from 'express';
 import axios from 'axios';
 
-// 定义API端点
-const API_ENDPOINT = 'https://api.apiyi.com/v1/chat/completions';
+// 从环境变量中读取API端点配置
+const API_ENDPOINT = process.env.API_ENDPOINT || 'https://api.apiyi.com/v1/chat/completions';
 
 // 创建Express应用实例
 const app = express();
+// 从环境变量中读取端口配置
 const PORT = process.env.PORT || 3000;
 
 // 中间件设置
@@ -60,6 +65,7 @@ app.post('/process-image', (req: Request, res: Response) => {
 // 图片编辑接口转发
 app.post('/edit-image', async (req: Request, res: Response) => {
   console.log('收到图片编辑请求');
+  const API_KEY = process.env.API_KEY || '';
   
   try {
     // 从请求体中获取参数
@@ -120,8 +126,8 @@ app.post('/edit-image', async (req: Request, res: Response) => {
     // 发送请求到目标API
     const response = await axios.post(API_ENDPOINT, requestBody, {
       headers: {
+        "Authorization": `Bearer ${API_KEY}`,
         'Content-Type': 'application/json'
-        // 这里可以添加API密钥等其他必要的header
       }
     });
     
