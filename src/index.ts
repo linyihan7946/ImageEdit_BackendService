@@ -1,4 +1,8 @@
 import express, { Request, Response } from 'express';
+import axios from 'axios';
+
+// 定义API端点
+const API_ENDPOINT = 'https://api.apiyi.com/v1/chat/completions';
 
 // 创建Express应用实例
 const app = express();
@@ -51,6 +55,110 @@ app.post('/process-image', (req: Request, res: Response) => {
       timestamp: new Date().toISOString()
     }
   });
+});
+
+// 图片编辑接口转发
+app.post('/edit-image', async (req: Request, res: Response) => {
+  console.log('收到图片编辑请求');
+  
+  try {
+    // 从请求体中获取参数
+    const { instruction, imageUrls } = req.body;
+    
+    // 验证必要参数
+    if (!instruction) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '缺少必要参数: instruction' 
+      });
+    }
+    
+    if (!imageUrls || !Array.isArray(imageUrls) || imageUrls.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '缺少必要参数: imageUrls（必须是非空数组）' 
+      });
+    }
+    
+    // 验证所有图片URL格式
+    for (const url of imageUrls) {
+      try {
+        new URL(url);
+      } catch (error) {
+        return res.status(400).json({ 
+          success: false, 
+          message: `无效的图片链接格式: ${url}` 
+        });
+      }
+    }
+    
+    // 构建转发请求体
+    const requestBody = {
+      model: 'gemini-2.5-flash-image',
+      stream: false,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: instruction
+            },
+            ...imageUrls.map(url => ({
+              type: 'image_url',
+              image_url: {
+                url: url
+              }
+            }))
+          ]
+        }
+      ]
+    };
+    
+    console.log('转发到API的请求体:', JSON.stringify(requestBody, null, 2));
+    
+    // 发送请求到目标API
+    const response = await axios.post(API_ENDPOINT, requestBody, {
+      headers: {
+        'Content-Type': 'application/json'
+        // 这里可以添加API密钥等其他必要的header
+      }
+    });
+    
+    // 返回API响应
+    res.json({
+      success: true,
+      message: '图片编辑请求处理成功',
+      data: response.data
+    });
+    
+  } catch (error: any) {
+    console.error('图片编辑请求失败:', error.message || error);
+    
+    // 处理错误响应
+    if (error.response) {
+      // 服务器返回了错误状态码
+      res.status(error.response.status || 500).json({
+        success: false,
+        message: 'API调用失败',
+        error: error.response.data || error.message
+      });
+    } else if (error.request) {
+      // 请求已发送但没有收到响应
+      res.status(504).json({
+        success: false,
+        message: 'API请求超时或无响应',
+        error: 'Network Error'
+      });
+    } else {
+      // 其他错误
+      res.status(500).json({
+        success: false,
+        message: '服务器内部错误',
+        error: error.message || 'Unknown Error'
+      });
+    }
+  }
 });
 
 // 启动服务器
