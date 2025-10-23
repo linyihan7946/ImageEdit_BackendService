@@ -1,0 +1,31 @@
+{
+  "name": "ImageEdit_BackendService",
+  "version": "1.0.0",
+  "description": "Node.js + Express + TypeScript 后端服务",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "node dist/index.js",
+    "dev": "nodemon src/index.ts",
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/linyihan7946/ImageEdit_BackendService.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/linyihan7946/ImageEdit_BackendService/issues"
+  },
+  "homepage": "https://github.com/linyihan7946/ImageEdit_BackendService#readme",
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^24.9.1",
+    "express": "^4.19.2",
+    "nodemon": "^3.1.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
