@@ -40,3 +40,6 @@ coverage/
 .temp/
 .tmp/
 .cache/
+
+# 图片文件夹
+images/

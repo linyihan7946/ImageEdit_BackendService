@@ -4,6 +4,15 @@ dotenv.config();
 
 import express, { Request, Response } from 'express';
 import axios from 'axios';
+import * as fs from 'fs';
+import * as path from 'path';
+
+// 确保图片保存目录存在
+const IMAGES_DIR = path.join(__dirname, '../images');
+if (!fs.existsSync(IMAGES_DIR)) {
+  fs.mkdirSync(IMAGES_DIR, { recursive: true });
+  console.log(`创建图片保存目录: ${IMAGES_DIR}`);
+}
 
 // 从环境变量中读取API端点配置
 const API_ENDPOINT = process.env.API_ENDPOINT || '';
@@ -137,6 +146,29 @@ app.post('/edit-image', async (req: Request, res: Response) => {
       }
     });
     
+    // 保存API响应到本地文件
+    const timestamp = Date.now();
+    const data = response.data;
+    const choices: any[] = data.choices;
+    for (let i = 0; i < choices.length; i++) {
+      const choice = choices[i];
+      const message = choice.message;
+      if (!message) {
+        continue;
+      }
+      const content: string = message.content;
+      const first = content.indexOf("(");
+      const last = content.indexOf(")");
+      if (first === -1 || last === -1) {
+        continue;
+      }
+      const base64 = content.substring(first + 1, last);
+      console.log("base64:", base64);
+      const imagePath = path.join(IMAGES_DIR, 'image_' + timestamp + '_' + i + '.png');
+      await base64ToImage(base64, imagePath);
+      console.log('图片已保存到:', imagePath);
+    }
+    
     // 返回API响应
     res.json({
       success: true,
@@ -177,3 +209,38 @@ app.post('/edit-image', async (req: Request, res: Response) => {
 app.listen(PORT, () => {
   console.log(`服务器正在运行，访问地址: http://localhost:${PORT}`);
 });
+
+/**
+ * 将 Base64 字符串保存为本地图片
+ * @param {string} base64Str - Base64 字符串（可带格式头，如 data:image/png;base64,xxx）
+ * @param {string} outputPath - 输出图片路径（含文件名，如 ./images/test.png）
+ * @returns {Promise} - 保存成功/失败的Promise
+ */
+function base64ToImage(base64Str: string, outputPath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    try {
+      // 移除 Base64 字符串中的格式头（如 data:image/png;base64,）
+      const base64Data = base64Str.replace(/^data:image\/\w+;base64,/, '');
+      
+      // 将 Base64 字符串转换为 Buffer
+      const buffer = Buffer.from(base64Data, 'base64');
+      
+      // 创建输出目录（如果不存在）
+      const dir = path.dirname(outputPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      
+      // 写入文件
+      fs.writeFile(outputPath, buffer, (err) => {
+        if (err) {
+          reject(`保存失败：${err.message}`);
+        } else {
+          resolve(`图片已保存至：${outputPath}`);
+        }
+      });
+    } catch (error) {
+      reject(`处理失败：${error}`);
+    }
+  });
+}
