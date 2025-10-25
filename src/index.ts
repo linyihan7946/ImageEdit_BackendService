@@ -6,12 +6,16 @@ import express, { Request, Response } from 'express';
 import axios from 'axios';
 
 // 从环境变量中读取API端点配置
-const API_ENDPOINT = process.env.API_ENDPOINT || 'https://api.apiyi.com/v1/chat/completions';
+const API_ENDPOINT = process.env.API_ENDPOINT || '';
+
+// 从环境变量中读取端口配置
+const PORT = process.env.PORT || 3000;
+
+// apikey
+const API_KEY = process.env.API_KEY || '';
 
 // 创建Express应用实例
 const app = express();
-// 从环境变量中读取端口配置
-const PORT = process.env.PORT || 3000;
 
 // 中间件设置
 app.use(express.json());
@@ -65,11 +69,13 @@ app.post('/process-image', (req: Request, res: Response) => {
 // 图片编辑接口转发
 app.post('/edit-image', async (req: Request, res: Response) => {
   console.log('收到图片编辑请求');
-  const API_KEY = process.env.API_KEY || '';
   
   try {
     // 从请求体中获取参数
     const { instruction, imageUrls } = req.body;
+    const imageUrls2: string[] = JSON.parse(imageUrls);
+
+    console.log('收到的请求体:', req.body);
     
     // 验证必要参数
     if (!instruction) {
@@ -79,7 +85,7 @@ app.post('/edit-image', async (req: Request, res: Response) => {
       });
     }
     
-    if (!imageUrls || !Array.isArray(imageUrls) || imageUrls.length === 0) {
+    if (!imageUrls2 || !Array.isArray(imageUrls2) || imageUrls2.length === 0) {
       return res.status(400).json({ 
         success: false, 
         message: '缺少必要参数: imageUrls（必须是非空数组）' 
@@ -87,7 +93,7 @@ app.post('/edit-image', async (req: Request, res: Response) => {
     }
     
     // 验证所有图片URL格式
-    for (const url of imageUrls) {
+    for (const url of imageUrls2) {
       try {
         new URL(url);
       } catch (error) {
@@ -110,7 +116,7 @@ app.post('/edit-image', async (req: Request, res: Response) => {
               type: 'text',
               text: instruction
             },
-            ...imageUrls.map(url => ({
+            ...imageUrls2.map(url => ({
               type: 'image_url',
               image_url: {
                 url: url
