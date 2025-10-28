@@ -5,6 +5,8 @@ dotenv.config();
 import express, { Request, Response } from 'express';
 import axios from 'axios';
 import { connectDB } from './database';
+import { wechatLogin, authMiddleware } from './wechat-auth';
+import { WechatLoginParams } from './wechat-auth';
 
 // 从环境变量中读取API端点配置
 const API_ENDPOINT = process.env.API_ENDPOINT || 'https://api.apiyi.com/v1/chat/completions';
@@ -24,10 +26,42 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 简单的路由示例
-app.get('/', (req: Request, res: Response) => {
-  console.log('收到GET请求');
-  res.json({ message: 'Hello World! 这是一个Node.js + Express + TypeScript项目' });
+// 微信登录路由
+app.post('/api/wechat/login', async (req: Request, res: Response) => {
+  try {
+    const params: WechatLoginParams = req.body;
+    
+    // 参数验证
+    if (!params.code) {
+      return res.status(400).json({ success: false, message: '缺少必要参数code' });
+    }
+    
+    // 调用微信登录逻辑
+    const result = await wechatLogin(params);
+    
+    if (result.success) {
+      return res.json(result);
+    } else {
+      return res.status(401).json(result);
+    }
+  } catch (error) {
+    console.error('微信登录接口错误:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: error instanceof Error ? error.message : '服务器内部错误' 
+    });
+  }
+});
+
+// 测试需要认证的路由
+app.get('/api/user/info', authMiddleware(), (req: Request, res: Response) => {
+  // @ts-ignore
+  const userInfo = req.user;
+  return res.json({
+    success: true,
+    message: '已成功认证',
+    user: userInfo
+  });
 });
 
 // 接收图片链接的POST请求
