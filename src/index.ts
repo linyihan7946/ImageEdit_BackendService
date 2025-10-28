@@ -4,6 +4,7 @@ dotenv.config();
 
 import express, { Request, Response } from 'express';
 import axios from 'axios';
+import { connectDB } from './database';
 
 // 从环境变量中读取API端点配置
 const API_ENDPOINT = process.env.API_ENDPOINT || 'https://api.apiyi.com/v1/chat/completions';
@@ -12,6 +13,12 @@ const API_ENDPOINT = process.env.API_ENDPOINT || 'https://api.apiyi.com/v1/chat/
 const app = express();
 // 从环境变量中读取端口配置
 const PORT = process.env.PORT || 3000;
+
+// 初始化数据库连接
+// connectDB().catch(err => {
+//   console.error('数据库初始化失败:', err);
+//   // 数据库连接失败不阻止服务器启动，但会记录错误
+// });
 
 // 中间件设置
 app.use(express.json());
