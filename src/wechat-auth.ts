@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { UserModel } from './models';
+import { UserBalanceModel, UserModel } from './models';
 import { User } from './models';
 
 /**
@@ -132,15 +132,25 @@ class WechatAuth {
 
       // 2. 查询数据库中是否已存在该用户
       let user = await UserModel.findByOpenid(openid);
+      console.log('查询用户openid:', openid);
+      console.log('查询用户结果:', user);
+
+      let isNewUser = false;
 
       // 3. 如果用户不存在，则创建新用户
       if (!user) {
-        const newUserId = await UserModel.create({
+        // 构建用户数据
+        const userData = {
           openid,
-          nickname: params.userInfo?.nickname,
+          nickname: params.userInfo?.nickname || '微信用户',
           avatar_url: params.userInfo?.avatarUrl,
+          last_login_time: new Date(),
           status: 0 // 正常状态
-        });
+        };
+        
+        // 创建用户记录
+        const newUserId = await UserModel.create(userData);
+        console.log('新用户注册成功，用户ID:', newUserId);
         
         // 获取创建的用户信息
         user = await UserModel.findById(newUserId);
@@ -148,8 +158,19 @@ class WechatAuth {
         if (!user) {
           return { success: false, message: '创建用户失败' };
         }
+        
+        isNewUser = true;
+        
+        // 4. 初始化新用户的余额记录
+        try {
+          await UserBalanceModel.init(user.id);
+          console.log('用户余额初始化成功，用户ID:', user.id);
+        } catch (balanceError) {
+          console.error('用户余额初始化失败:', balanceError);
+          // 余额初始化失败不影响用户登录
+        }
       } else {
-        // 4. 如果用户已存在，更新用户信息（如果有）
+        // 5. 如果用户已存在，更新用户信息（如果有）
         const updateData: Partial<User> = {};
         
         if (params.userInfo?.nickname) {
@@ -166,33 +187,34 @@ class WechatAuth {
         // 只有在有数据需要更新时才调用update方法
         if (Object.keys(updateData).length > 0) {
           await UserModel.update(user.id, updateData);
+          console.log('用户信息更新成功，用户ID:', user.id);
           // 重新获取更新后的用户信息
           user = await UserModel.findById(user.id);
         }
       }
 
-      // 5. 生成token和返回登录结果
-        // 由于前面已经进行了充分的空值检查，这里user一定不为null
-        if (!user) {
-          return {
-            success: false,
-            message: '获取用户信息失败'
-          };
-        }
-        
-        const token = this.generateToken(user.id, user.openid);
-
-        // 6. 返回登录结果
+      // 6. 生成token和返回登录结果
+      if (!user) {
         return {
-          success: true,
-          user: {
-            id: user.id,
-            openid: user.openid,
-            nickname: user.nickname,
-            avatar_url: user.avatar_url
-          },
-          token
+          success: false,
+          message: '获取用户信息失败'
         };
+      }
+      
+      const token = this.generateToken(user.id, user.openid);
+
+      // 7. 返回登录结果
+      return {
+        success: true,
+        user: {
+          id: user.id,
+          openid: user.openid,
+          nickname: user.nickname,
+          avatar_url: user.avatar_url
+        },
+        token,
+        message: isNewUser ? '注册成功' : '登录成功'
+      };
     } catch (error) {
       console.error('微信登录失败:', error);
       return {
