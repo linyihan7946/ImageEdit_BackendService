@@ -73,14 +73,8 @@ export const UserModel = {
    * 创建新用户
    */
   async create(data: Omit<User, 'id' | 'register_time'>): Promise<number> {
-    const { openid, nickname, avatar_url, last_login_time, status } = data;
-    const params = [openid, nickname, avatar_url, last_login_time, status];
     return await insertDB('user', {
-      openid,
-      nickname,
-      avatar_url,
-      last_login_time,
-      status,
+      ...data,
       register_time: new Date()
     });
   },
@@ -89,7 +83,11 @@ export const UserModel = {
    * 更新用户信息
    */
   async update(id: number, data: Partial<User>): Promise<number> {
-    return await updateDB('user', data, `id = ${id}`);
+    // 移除id字段，避免更新
+    const updateData = { ...data };
+    delete updateData.id;
+    
+    return await updateDB('user', updateData, `id = ${id}`);
   },
 
   /**
@@ -195,11 +193,13 @@ export const UserBalanceModel = {
     if (existing) return existing.id;
     
     // 创建新记录
-    return await insertDB('user_balance', {
+    const balanceId = await insertDB('user_balance', {
       user_id: userId,
       balance: 0.00,
       updated_time: new Date()
     });
+    console.log('用户余额记录创建成功，ID:', balanceId);
+    return balanceId;
   },
 
   /**
@@ -233,7 +233,9 @@ export const UserBalanceModel = {
       [amount, userId]
     );
     
-    return Array.isArray(results) ? 0 : (results as any).affectedRows || 0;
+    const affectedRows = Array.isArray(results) ? 0 : (results as any).affectedRows || 0;
+    console.log(`用户余额增加成功，用户ID: ${userId}，增加金额: ${amount}，影响行数: ${affectedRows}`);
+    return affectedRows;
   },
 
   /**
@@ -330,8 +332,21 @@ export async function createEditWithDeduct(
   cost: number
 ): Promise<{ success: boolean; editRecordId?: number; message?: string }> {
   try {
-    return await transactionDB(async () => {
-      // 1. 创建编辑记录
+    return await transactionDB(async (connection) => {
+      // 1. 检查余额是否足够
+      const balanceQuery = 'SELECT balance FROM user_balance WHERE user_id = ? FOR UPDATE';
+      const balanceResults = await queryDB(balanceQuery, [userId]);
+      
+      if (balanceResults.length === 0) {
+        throw new Error('用户余额记录不存在');
+      }
+      
+      const currentBalance = balanceResults[0].balance;
+      if (currentBalance < cost) {
+        throw new Error('余额不足');
+      }
+      
+      // 2. 创建编辑记录
       const inputImagesStr = inputImages.join(',');
       const editRecordId = await EditRecordModel.create({
         user_id: userId,
@@ -341,7 +356,7 @@ export async function createEditWithDeduct(
         cost
       });
       
-      // 2. 扣除余额
+      // 3. 扣除余额
       const deductSuccess = await UserBalanceModel.deduct(
         userId,
         cost,
