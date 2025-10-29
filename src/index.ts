@@ -4,9 +4,19 @@ dotenv.config();
 
 import express, { Request, Response } from 'express';
 import axios from 'axios';
-import { connectDB } from './database';
+import * as fs from 'fs';
+import * as path from 'path';
 import { wechatLogin, authMiddleware } from './wechat-auth';
 import { WechatLoginParams } from './wechat-auth';
+import { EditRecordModel } from './models';
+
+// 确保图片保存目录存在
+const IMAGES_DIR = path.join(__dirname, '../images');
+if (!fs.existsSync(IMAGES_DIR)) {
+  fs.mkdirSync(IMAGES_DIR, { recursive: true });
+  console.log(`创建图片保存目录: ${IMAGES_DIR}`);
+}
+
 
 // 从环境变量中读取API端点配置
 const API_ENDPOINT = process.env.API_ENDPOINT || 'https://api.apiyi.com/v1/chat/completions';
@@ -108,6 +118,7 @@ app.post('/edit-image', async (req: Request, res: Response) => {
   console.log('收到图片编辑请求');
   const API_KEY = process.env.API_KEY || '';
   
+  const req1: any = req;
   try {
     // 从请求体中获取参数
     const { instruction, imageUrls } = req.body;
@@ -171,6 +182,49 @@ app.post('/edit-image', async (req: Request, res: Response) => {
         'Content-Type': 'application/json'
       }
     });
+
+    // 保存API响应到本地文件
+    const timestamp = Date.now();
+    const data = response.data;
+    const choices: any[] = data.choices;
+    for (let i = 0; i < choices.length; i++) {
+      const choice = choices[i];
+      const message = choice.message;
+      if (!message) {
+        continue;
+      }
+      const content: string = message.content;
+      const first = content.indexOf("(");
+      const last = content.indexOf(")");
+      if (first === -1 || last === -1) {
+        continue;
+      }
+      const base64 = content.substring(first + 1, last);
+      console.log("base64:", base64);
+      const imagePath = path.join(IMAGES_DIR, 'image_' + timestamp + '_' + i + '.png');
+      await base64ToImage(base64, imagePath);
+      console.log('图片已保存到:', imagePath);
+    }
+    
+    // 记录操作到数据库
+    try {
+      // 尝试从请求中获取用户ID，如果没有则使用默认值0表示未登录用户
+      const userId = req1.user?.id || 0;
+      
+      // 创建编辑记录
+      const recordId = await EditRecordModel.create({
+        user_id: userId,
+        prompt: instruction,
+        input_images: JSON.stringify(imageUrls),
+        status: 1, // 1表示成功
+        cost: 0 // 可以根据实际情况设置成本
+      });
+      
+      console.log(`操作已成功记录到数据库，记录ID: ${recordId}`);
+    } catch (dbError) {
+      console.error('记录操作到数据库失败:', dbError);
+      // 数据库错误不影响API响应返回
+    }
     
     // 返回API响应
     res.json({
@@ -181,6 +235,25 @@ app.post('/edit-image', async (req: Request, res: Response) => {
     
   } catch (error: any) {
     console.error('图片编辑请求失败:', error.message || error);
+    
+    // 记录失败操作到数据库
+    try {
+      // 尝试从请求中获取用户ID，如果没有则使用默认值0表示未登录用户
+      const userId = req1.user?.id || 0;
+      
+      // 创建失败的编辑记录
+      await EditRecordModel.create({
+        user_id: userId,
+        prompt: req.body.instruction || '',
+        input_images: JSON.stringify(req.body.imageUrls || []),
+        status: 2, // 2表示失败
+        cost: 0
+      });
+      
+      console.log('失败操作已记录到数据库');
+    } catch (dbError) {
+      console.error('记录失败操作到数据库失败:', dbError);
+    }
     
     // 处理错误响应
     if (error.response) {
@@ -212,3 +285,39 @@ app.post('/edit-image', async (req: Request, res: Response) => {
 app.listen(PORT, () => {
   console.log(`服务器正在运行，访问地址: http://localhost:${PORT}`);
 });
+
+
+/**
+ * 将 Base64 字符串保存为本地图片
+ * @param {string} base64Str - Base64 字符串（可带格式头，如 data:image/png;base64,xxx）
+ * @param {string} outputPath - 输出图片路径（含文件名，如 ./images/test.png）
+ * @returns {Promise} - 保存成功/失败的Promise
+ */
+function base64ToImage(base64Str: string, outputPath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    try {
+      // 移除 Base64 字符串中的格式头（如 data:image/png;base64,）
+      const base64Data = base64Str.replace(/^data:image\/\w+;base64,/, '');
+      
+      // 将 Base64 字符串转换为 Buffer
+      const buffer = Buffer.from(base64Data, 'base64');
+      
+      // 创建输出目录（如果不存在）
+      const dir = path.dirname(outputPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      
+      // 写入文件
+      fs.writeFile(outputPath, buffer, (err) => {
+        if (err) {
+          reject(`保存失败：${err.message}`);
+        } else {
+          resolve(`图片已保存至：${outputPath}`);
+        }
+      });
+    } catch (error) {
+      reject(`处理失败：${error}`);
+    }
+  });
+}
