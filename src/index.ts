@@ -9,7 +9,7 @@ import * as path from 'path';
 import { wechatLogin, authMiddleware } from './wechat-auth';
 import { WechatLoginParams } from './wechat-auth';
 import { EditRecordModel } from './models';
-import { setupEditImageRoute } from './edit-image';
+import { setupEditImageRoute, setupEditImageNewRoute } from './edit-image';
 
 // 图片保存目录已在edit-image.ts中处理
 
@@ -111,6 +111,8 @@ app.post('/process-image', (req: Request, res: Response) => {
 
 // 设置图片编辑路由
 setupEditImageRoute(app);
+
+setupEditImageNewRoute(app);
 
 // 启动服务器
 app.listen(PORT, () => {
