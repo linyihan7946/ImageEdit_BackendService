@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import dotenv from 'dotenv';
+import * as crypto from 'crypto';
+import * as dotenv from 'dotenv';
 
 // 为COS SDK定义接口类型
 interface COSOptions {
@@ -202,18 +203,42 @@ export class CosUploader {
   }
 
   /**
-   * 生成唯一的文件路径，避免文件名冲突
-   * @param originalFileName 原始文件名
+   * 生成唯一的文件路径，基于文件内容计算md5码
+   * @param filePath 文件路径，用于读取文件内容计算md5
    * @param prefix 路径前缀
    * @returns 唯一的文件路径
    */
-  generateUniqueFilePath(originalFileName: string, prefix = 'uploads'): string {
-    const timestamp = Date.now();
-    const randomStr = Math.random().toString(36).substring(2, 8);
+  generateUniqueFilePath(filePath: string, prefix = 'uploads'): string {
+    // 读取文件内容并计算md5
+    const fileContent = fs.readFileSync(filePath);
+    const md5Hash = this.calculateMD5(fileContent);
+    const ext = path.extname(filePath) || '';
+    return `${prefix}/${md5Hash}${ext}`;
+  }
+  
+  /**
+   * 为Buffer数据生成唯一的文件路径
+   * @param originalFileName 原始文件名
+   * @param buffer 文件Buffer数据
+   * @param prefix 路径前缀
+   * @returns 唯一的文件路径
+   */
+  generateUniqueFilePathForBuffer(originalFileName: string, buffer: Buffer, prefix = 'uploads'): string {
+    const md5Hash = this.calculateMD5(buffer);
     const ext = path.extname(originalFileName) || '';
-    const fileName = path.basename(originalFileName, ext);
     
-    return `${prefix}/${timestamp}_${randomStr}_${fileName}${ext}`;
+    return `${prefix}/${md5Hash}${ext}`;
+  }
+  
+  /**
+   * 计算数据的MD5哈希值
+   * @param data 文件内容或Buffer数据
+   * @returns MD5哈希值（十六进制字符串）
+   */
+  private calculateMD5(data: Buffer): string {
+    const md5Sum = crypto.createHash('md5');
+    md5Sum.update(data);
+    return md5Sum.digest('hex');
   }
 }
 
@@ -238,8 +263,8 @@ async function testCosUpload() {
       return;
     }
     
-    // 生成唯一的COS存储路径
-    const cosPath = cosUploader.generateUniqueFilePath('upload-test.png', 'test-uploads');
+    // 生成唯一的COS存储路径（使用文件内容的md5）
+    const cosPath = cosUploader.generateUniqueFilePath(testImagePath, 'test-uploads');
     console.log(`将上传到COS路径: ${cosPath}`);
     
     // 定义上传进度回调
@@ -260,25 +285,20 @@ async function testCosUpload() {
     console.log('✓ 文件上传成功!');
     console.log(`访问URL: ${fileUrl}`);
     
-    // 测试获取文件URL功能
-    const generatedUrl = cosUploader.getFileUrl(cosPath);
-    console.log(`生成的URL: ${generatedUrl}`);
+    // // 测试获取文件URL功能
+    // const generatedUrl = cosUploader.getFileUrl(cosPath);
+    // console.log(`生成的URL: ${generatedUrl}`);
     
-    // 提示：如果需要测试删除功能，可以取消下面的注释
-    /*
-    await cosUploader.deleteFile(cosPath);
-    console.log('✓ 文件已删除!');
-    */
-    
-    // 测试Buffer上传功能
-    console.log('\n开始测试Buffer上传...');
-    const fileBuffer = fs.readFileSync(testImagePath);
-    const bufferCosPath = cosUploader.generateUniqueFilePath('buffer-test.png', 'test-uploads');
-    const bufferUrl = await cosUploader.uploadBuffer(fileBuffer, bufferCosPath, {
-      contentType: 'image/png'
-    });
-    console.log('✓ Buffer上传成功!');
-    console.log(`Buffer上传URL: ${bufferUrl}`);
+    // // 测试Buffer上传功能
+    // console.log('\n开始测试Buffer上传...');
+    // const fileBuffer = fs.readFileSync(testImagePath);
+    // // 使用基于buffer内容的方法生成唯一路径
+    // const bufferCosPath = cosUploader.generateUniqueFilePathForBuffer('buffer-test.png', fileBuffer, 'test-uploads');
+    // const bufferUrl = await cosUploader.uploadBuffer(fileBuffer, bufferCosPath, {
+    //   contentType: 'image/png'
+    // });
+    // console.log('✓ Buffer上传成功!');
+    // console.log(`Buffer上传URL: ${bufferUrl}`);
     
   } catch (error) {
     console.error('✗ 测试失败:', error instanceof Error ? error.message : error);
