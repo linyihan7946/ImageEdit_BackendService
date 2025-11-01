@@ -240,6 +240,54 @@ export class CosUploader {
     md5Sum.update(data);
     return md5Sum.digest('hex');
   }
+  
+  /**
+   * 上传Base64格式的图片到腾讯云COS
+   * @param base64Str Base64编码的图片字符串（可以包含前缀如'data:image/png;base64,'）
+   * @param fileName 文件名，用于确定文件扩展名
+   * @param options 上传选项
+   * @returns 上传成功后的文件URL
+   */
+  async uploadBase64(
+    base64Str: string,
+    fileName: string,
+    options: {
+      contentType?: string;
+      onProgress?: (progressData: { loaded: number; total: number; speed: number }) => void;
+    } = {}
+  ): Promise<string> {
+    // 验证参数
+    if (!base64Str) {
+      throw new Error('Base64字符串不能为空');
+    }
+    if (!fileName) {
+      throw new Error('文件名不能为空');
+    }
+    
+    // 移除可能的前缀（如'data:image/png;base64,'）
+    const base64Data = base64Str.replace(/^data:image\/[^;]+;base64,/, '');
+    
+    // 验证Base64格式
+    if (!/^[A-Za-z0-9+/=]+$/.test(base64Data)) {
+      throw new Error('无效的Base64字符串格式');
+    }
+    
+    try {
+      // 转换Base64字符串为Buffer
+      const buffer = Buffer.from(base64Data, 'base64');
+      
+      // 生成唯一的存储路径
+      const cosPath = this.generateUniqueFilePathForBuffer(fileName, buffer, 'uploads');
+      
+      // 使用现有的uploadBuffer方法上传数据
+      return await this.uploadBuffer(buffer, cosPath, options);
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Base64处理失败: ${error.message}`);
+      }
+      throw new Error('Base64处理失败');
+    }
+  }
 }
 
 /**
@@ -289,16 +337,15 @@ async function testCosUpload() {
     // const generatedUrl = cosUploader.getFileUrl(cosPath);
     // console.log(`生成的URL: ${generatedUrl}`);
     
-    // // 测试Buffer上传功能
-    // console.log('\n开始测试Buffer上传...');
-    // const fileBuffer = fs.readFileSync(testImagePath);
-    // // 使用基于buffer内容的方法生成唯一路径
-    // const bufferCosPath = cosUploader.generateUniqueFilePathForBuffer('buffer-test.png', fileBuffer, 'test-uploads');
-    // const bufferUrl = await cosUploader.uploadBuffer(fileBuffer, bufferCosPath, {
-    //   contentType: 'image/png'
-    // });
-    // console.log('✓ Buffer上传成功!');
-    // console.log(`Buffer上传URL: ${bufferUrl}`);
+    // 测试Base64上传功能
+    console.log('\n开始测试Base64上传...');
+    // 创建一个简单的Base64图片示例（1x1像素的红色PNG图片）
+    const testBase64Image = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+    const base64Url = await cosUploader.uploadBase64(testBase64Image, 'base64-test.png', {
+      contentType: 'image/png'
+    });
+    console.log('✓ Base64上传成功!');
+    console.log(`Base64上传URL: ${base64Url}`);
     
   } catch (error) {
     console.error('✗ 测试失败:', error instanceof Error ? error.message : error);
