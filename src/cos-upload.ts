@@ -2,28 +2,22 @@ import * as fs from 'fs';
 import * as path from 'path';
 import dotenv from 'dotenv';
 
-// 使用require方式导入，避免TypeScript编译错误
-const COS = require('cos-nodejs-sdk-v5');
-
-// 定义接口类型
+// 为COS SDK定义接口类型
 interface COSOptions {
   SecretId: string;
   SecretKey: string;
 }
 
-interface ProgressData {
-  loaded: number;
-  total: number;
-  speed: number;
-}
-
-interface COSInstance {
+interface COS {
   SecretId?: string;
   SecretKey?: string;
   putObject(params: any, callback: (err: Error | null, data?: any) => void): void;
   getObjectUrl(params: any): string;
   deleteObject(params: any, callback: (err: Error | null) => void): void;
 }
+
+// 使用require导入并指定类型
+const COS = require('cos-nodejs-sdk-v5') as new (options: COSOptions) => COS;
 
 // 加载环境变量
 dotenv.config();
@@ -32,11 +26,12 @@ dotenv.config();
  * 腾讯云COS文件上传工具
  */
 export class CosUploader {
-  private cos: any; // 使用any类型避免类型错误
+  private cos: COS;
   private bucket: string;
   private region: string;
 
   constructor() {
+    console.log(process.env);
     // 从环境变量获取COS配置
     this.cos = new COS({
       SecretId: process.env.TENCENT_COS_SECRET_ID || '',
@@ -47,7 +42,7 @@ export class CosUploader {
     this.region = process.env.TENCENT_COS_REGION || '';
 
     // 验证必要的配置
-    if (!this.cos.SecretId || !this.cos.SecretKey) {
+    if (!process.env.TENCENT_COS_SECRET_ID || !process.env.TENCENT_COS_SECRET_KEY) {
       throw new Error('腾讯云COS密钥未配置，请设置 TENCENT_COS_SECRET_ID 和 TENCENT_COS_SECRET_KEY 环境变量');
     }
     if (!this.bucket || !this.region) {
@@ -67,7 +62,7 @@ export class CosUploader {
     cosPath: string,
     options: {
       contentType?: string;
-      onProgress?: (progressData: { loaded: number; total: number; speed: number }) => void;
+      // onProgress?: (progressData: { loaded: number; total: number; speed: number }) => void;
     } = {}
   ): Promise<string> {
     // 确保文件存在
@@ -84,6 +79,9 @@ export class CosUploader {
     // 生成存储路径，如果没有指定则使用文件名
     const key = cosPath || path.basename(filePath);
 
+    // 读取文件内容
+    const fileContent = fs.readFileSync(filePath);
+    
     // 上传文件
     return new Promise((resolve, reject) => {
       this.cos.putObject(
@@ -91,9 +89,9 @@ export class CosUploader {
           Bucket: this.bucket,
           Region: this.region,
           Key: key,
-          FilePath: filePath,
+          Body: fileContent,
           ContentType: options.contentType,
-          onProgress: options.onProgress,
+          // onProgress: options.onProgress,
         },
         (err: Error | null, data?: any) => {
           if (err) {
@@ -223,3 +221,79 @@ export class CosUploader {
  * 创建CosUploader实例
  */
 export const cosUploader = new CosUploader();
+
+
+// 测试文件上传
+async function testCosUpload() {
+  console.log('开始测试腾讯云COS文件上传功能...');
+  
+  try {
+    // 测试用图片路径（这里假设使用一个实际存在的测试图片）
+    // 如果没有实际图片，可以创建一个简单的测试图片或使用现有的图片路径
+    const testImagePath = path.join(__dirname, '../images/upload-test.png');
+    
+    // 检查测试图片是否存在，如果不存在则创建一个简单的测试图片（这里仅做示例）
+    if (!fs.existsSync(testImagePath)) {
+      console.log(`测试图片不存在，将创建一个简单的文本文件作为测试: ${testImagePath}`);
+      return;
+    }
+    
+    // 生成唯一的COS存储路径
+    const cosPath = cosUploader.generateUniqueFilePath('upload-test.png', 'test-uploads');
+    console.log(`将上传到COS路径: ${cosPath}`);
+    
+    // 定义上传进度回调
+    // const onProgress = (progressData: { loaded: number; total: number; speed: number }) => {
+    //   const percent = ((progressData.loaded / progressData.total) * 100).toFixed(2);
+    //   const speed = (progressData.speed / 1024 / 1024).toFixed(2); // MB/s
+    //   console.log(`上传进度: ${percent}%, 速度: ${speed} MB/s`);
+    // };
+    
+    // 执行上传
+    console.log(`开始上传文件: ${testImagePath}`);
+    const fileUrl = await cosUploader.uploadFile(testImagePath, cosPath, {
+      contentType: 'image/png', // 假设是PNG图片
+      // onProgress
+    });
+    
+    // 上传成功
+    console.log('✓ 文件上传成功!');
+    console.log(`访问URL: ${fileUrl}`);
+    
+    // 测试获取文件URL功能
+    const generatedUrl = cosUploader.getFileUrl(cosPath);
+    console.log(`生成的URL: ${generatedUrl}`);
+    
+    // 提示：如果需要测试删除功能，可以取消下面的注释
+    /*
+    await cosUploader.deleteFile(cosPath);
+    console.log('✓ 文件已删除!');
+    */
+    
+    // 测试Buffer上传功能
+    console.log('\n开始测试Buffer上传...');
+    const fileBuffer = fs.readFileSync(testImagePath);
+    const bufferCosPath = cosUploader.generateUniqueFilePath('buffer-test.png', 'test-uploads');
+    const bufferUrl = await cosUploader.uploadBuffer(fileBuffer, bufferCosPath, {
+      contentType: 'image/png'
+    });
+    console.log('✓ Buffer上传成功!');
+    console.log(`Buffer上传URL: ${bufferUrl}`);
+    
+  } catch (error) {
+    console.error('✗ 测试失败:', error instanceof Error ? error.message : error);
+    
+    // 检查是否是环境变量配置问题
+    if (error instanceof Error && error.message.includes('环境变量')) {
+      console.log('提示: 请确保已在.env文件中配置以下环境变量:');
+      console.log('  - TENCENT_COS_SECRET_ID');
+      console.log('  - TENCENT_COS_SECRET_KEY');
+      console.log('  - TENCENT_COS_BUCKET');
+      console.log('  - TENCENT_COS_REGION');
+    }
+  } finally {
+    console.log('测试完成');
+  }
+}
+
+// testCosUpload();
