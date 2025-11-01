@@ -3,6 +3,7 @@ import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
 import { EditRecordModel } from './models';
+import { cosUploader } from './cos-upload';
 
 // 从环境变量中读取API端点配置
 const API_ENDPOINT = process.env.API_ENDPOINT || 'https://api.apiyi.com/v1/chat/completions';
@@ -123,11 +124,13 @@ export function setupEditImageRoute(app: Express): void {
           'Content-Type': 'application/json'
         }
       });
+      const result: any = {};
 
       // 保存API响应到本地文件
       const timestamp = Date.now();
       const data = response.data;
       const choices: any[] = data.choices;
+      const images: string[] = [];
       for (let i = 0; i < choices.length; i++) {
         const choice = choices[i];
         const message = choice.message;
@@ -141,11 +144,16 @@ export function setupEditImageRoute(app: Express): void {
           continue;
         }
         const base64 = content.substring(first + 1, last);
-        console.log("base64:", base64);
-        const imagePath = path.join(IMAGES_DIR, 'image_' + timestamp + '_' + i + '.png');
-        await base64ToImage(base64, imagePath);
-        console.log('图片已保存到:', imagePath);
+        const imageUrl = await cosUploader.uploadBase64(base64, '.png', {
+          contentType: 'image/png'
+        });
+        images.push(imageUrl);
+        // console.log("base64:", base64);
+        // const imagePath = path.join(IMAGES_DIR, 'image_' + timestamp + '_' + i + '.png');
+        // await base64ToImage(base64, imagePath);
+        // console.log('图片已保存到:', imagePath);
       }
+      console.log("images:", images);
       
       // 记录操作到数据库
       try {
@@ -171,7 +179,7 @@ export function setupEditImageRoute(app: Express): void {
       res.json({
         success: true,
         message: '图片编辑请求处理成功',
-        data: response.data
+        data: {images}// response.data
       });
       
     } catch (error: any) {

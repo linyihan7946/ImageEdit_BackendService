@@ -32,7 +32,6 @@ export class CosUploader {
   private region: string;
 
   constructor() {
-    console.log(process.env);
     // 从环境变量获取COS配置
     this.cos = new COS({
       SecretId: process.env.TENCENT_COS_SECRET_ID || '',
@@ -250,7 +249,7 @@ export class CosUploader {
    */
   async uploadBase64(
     base64Str: string,
-    fileName: string,
+    ext: string,
     options: {
       contentType?: string;
       onProgress?: (progressData: { loaded: number; total: number; speed: number }) => void;
@@ -260,7 +259,7 @@ export class CosUploader {
     if (!base64Str) {
       throw new Error('Base64字符串不能为空');
     }
-    if (!fileName) {
+    if (!ext) {
       throw new Error('文件名不能为空');
     }
     
@@ -277,7 +276,7 @@ export class CosUploader {
       const buffer = Buffer.from(base64Data, 'base64');
       
       // 生成唯一的存储路径
-      const cosPath = this.generateUniqueFilePathForBuffer(fileName, buffer, 'uploads');
+      const cosPath = this.generateUniqueFilePathForBuffer(ext, buffer, 'uploads');
       
       // 使用现有的uploadBuffer方法上传数据
       return await this.uploadBuffer(buffer, cosPath, options);
