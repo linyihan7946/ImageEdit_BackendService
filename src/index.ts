@@ -3,34 +3,25 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import express, { Request, Response } from 'express';
-import axios from 'axios';
-import * as fs from 'fs';
-import * as path from 'path';
 import { wechatLogin, authMiddleware } from './wechat-auth';
 import { WechatLoginParams } from './wechat-auth';
-import { EditRecordModel } from './models';
 import { setupEditImageRoute, setupEditImageNewRoute } from './edit-image';
+import bodyParser from 'body-parser';
+// const bodyParser = require('body-parser');
 
-// 图片保存目录已在edit-image.ts中处理
 
-
-// 从环境变量中读取API端点配置
-const API_ENDPOINT = process.env.API_ENDPOINT || 'https://api.apiyi.com/v1/chat/completions';
 
 // 创建Express应用实例
 const app = express();
 // 从环境变量中读取端口配置
 const PORT = process.env.PORT || 3000;
 
-// 初始化数据库连接
-// connectDB().catch(err => {
-//   console.error('数据库初始化失败:', err);
-//   // 数据库连接失败不阻止服务器启动，但会记录错误
-// });
-
 // 中间件设置
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+// 增加请求体大小限制 (默认是100kb)
+app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
 // 微信登录路由
 app.post('/api/wechat/login', async (req: Request, res: Response) => {
