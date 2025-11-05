@@ -6,6 +6,7 @@ import express, { Request, Response } from 'express';
 import { wechatLogin, authMiddleware } from './wechat-auth';
 import { WechatLoginParams } from './wechat-auth';
 import { setupEditImageRoute, setupEditImageNewRoute } from './edit-image';
+import { setupCosAuthRoute } from './cos-auth';
 import bodyParser from 'body-parser';
 // const bodyParser = require('body-parser');
 
@@ -102,8 +103,10 @@ app.post('/process-image', (req: Request, res: Response) => {
 
 // 设置图片编辑路由
 setupEditImageRoute(app);
-
 setupEditImageNewRoute(app);
+
+// 设置COS授权路由
+setupCosAuthRoute(app);
 
 // 启动服务器
 app.listen(PORT, () => {

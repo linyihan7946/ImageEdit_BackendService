@@ -34,6 +34,7 @@
     "body-parser": "^2.2.0",
     "cos-nodejs-sdk-v5": "^2.15.4",
     "dotenv": "^17.2.3",
-    "mysql2": "^3.15.3"
+    "mysql2": "^3.15.3",
+    "tencentcloud-sdk-nodejs-sts": "^4.1.100"
   }
 }
