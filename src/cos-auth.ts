@@ -19,12 +19,12 @@ const StsClient = tencentcloud.sts.v20180813.Client;
  * 腾讯云COS临时密钥接口
  */
 export interface CosTempKeys {
-  SecretId: string;
-  SecretKey: string;
-  SessionToken?: string;
-  Region: string;
-  Bucket: string;
-  ExpiredTime: number;
+  secretId: string;
+  secretKey: string;
+  sessionToken?: string;
+  region: string;
+  bucket: string;
+  expiredTime: number;
 }
 
 /**
@@ -75,11 +75,11 @@ export async function generateCosTempKeys(): Promise<CosTempKeys> {
       
       // 构造返回数据
       const tempKeys: CosTempKeys = {
-        SecretId: secretId,
-        SecretKey: secretKey,
-        Region: region,
-        Bucket: bucket,
-        ExpiredTime: expiredTime
+        secretId,
+        secretKey,
+        region,
+        bucket,
+        expiredTime
       };
       
       // 记录使用主密钥的信息
