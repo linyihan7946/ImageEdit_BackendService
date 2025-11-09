@@ -108,6 +108,99 @@ setupEditImageNewRoute(app);
 // 设置COS授权路由
 setupCosAuthRoute(app);
 
+// 接收Base64图片并上传到COS的路由
+app.post('/api/upload-base64-to-cos', async (req: Request, res: Response) => {
+  try {
+    console.log('收到Base64图片上传请求');
+    
+    // 从请求体中获取参数
+    const { imageBase64, imageType = 'jpg' } = req.body;
+    
+    // 参数验证
+    if (!imageBase64) {
+      return res.status(400).json({
+        success: false,
+        message: '缺少必要参数: imageBase64'
+      });
+    }
+    
+    // 检查请求体大小（用于调试大文件）
+    const requestSize = JSON.stringify(req.body).length;
+    console.log(`请求体大小: ${(requestSize / 1024 / 1024).toFixed(2)} MB`);
+    console.log(`Base64字符串长度: ${imageBase64.length}`);
+    
+    // 验证Base64格式
+    if (!/^([A-Za-z0-9+/=]|data:image\/[^;]+;base64,)+$/.test(imageBase64)) {
+      return res.status(400).json({
+        success: false,
+        message: '无效的Base64字符串格式'
+      });
+    }
+    
+    // 处理大Base64数据
+    // 对于超大Base64，添加处理逻辑
+    if (imageBase64.length > 10 * 1024 * 1024) { // 10MB
+      console.warn('警告: 接收到超大Base64数据，可能需要优化处理');
+    }
+    
+    // 导入cos-upload模块
+    const { cosUploader } = require('./cos-upload');
+    
+    // 上传Base64到COS
+    console.log('开始上传Base64数据到COS...');
+    const fileUrl = await cosUploader.uploadBase64(
+      imageBase64,
+      `.${imageType}`,
+      {
+        contentType: `image/${imageType}`,
+        // 对于大数据，可以添加进度回调
+        onProgress: (progressData: { loaded: number; total: number; speed: number }) => {
+          const percent = ((progressData.loaded / progressData.total) * 100).toFixed(2);
+          const speed = (progressData.speed / 1024).toFixed(2); // KB/s
+          console.log(`上传进度: ${percent}%, 速度: ${speed} KB/s`);
+        }
+      }
+    );
+    
+    console.log('Base64上传成功，生成的文件URL:', fileUrl);
+    
+    // 返回成功响应
+    return res.json({
+      success: true,
+      message: 'Base64图片上传到COS成功',
+      data: {
+        fileUrl: fileUrl,
+        timestamp: new Date().toISOString(),
+        base64Length: imageBase64.length
+      }
+    });
+    
+  } catch (error) {
+    console.error('Base64图片上传到COS失败:', error);
+    
+    // 处理不同类型的错误
+    if (error instanceof Error) {
+      if (error.message.includes('Base64')) {
+        return res.status(400).json({
+          success: false,
+          message: `Base64处理失败: ${error.message}`
+        });
+      } else if (error.message.includes('COS')) {
+        return res.status(500).json({
+          success: false,
+          message: `COS上传失败: ${error.message}`
+        });
+      }
+    }
+    
+    return res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : '服务器内部错误',
+      error: error
+    });
+  }
+});
+
 // 启动服务器
 app.listen(PORT, () => {
   console.log(`服务器正在运行，访问地址: http://localhost:${PORT}`);
