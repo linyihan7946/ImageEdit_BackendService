@@ -7,6 +7,7 @@
 
 import * as dotenv from 'dotenv';
 import { Request, Response } from 'express';
+import * as crypto from 'crypto';
 
 // 加载环境变量
 dotenv.config();
@@ -25,6 +26,8 @@ export interface CosTempKeys {
   region: string;
   bucket: string;
   expiredTime: number;
+  policy: string;
+  signature: string;
 }
 
 /**
@@ -49,24 +52,25 @@ export async function generateCosTempKeys(): Promise<CosTempKeys> {
       return reject(new Error('腾讯云COS存储桶信息未配置，请设置 TENCENT_COS_BUCKET 和 TENCENT_COS_REGION 环境变量'));
     }
 
-    // 策略内容，限制上传权限
+    // 1. 定义上传策略（JSON 格式）
     const policy = {
-      version: '2.0',
-      statement: [
-        {
-          action: [
-            'name/cos:PutObject',
-            'name/cos:InitiateMultipartUpload',
-            'name/cos:UploadPart',
-            'name/cos:CompleteMultipartUpload'
-          ],
-          effect: 'allow',
-          resource: [
-            `qcs::cos:${region}:uid/*:${bucket}/*`
-          ]
-        }
-      ]
+      expiration: new Date(Date.now() + 3600 * 1000).toISOString(), // 签名有效期 1 小时
+      conditions: [
+        ['content-length-range', 0, 1024 * 1024 * 100], // 限制文件大小 0-10MB
+        ['starts-with', '$key', 'uploads/'], // 限制文件路径前缀（只能上传到 uploads/ 目录）
+        ['eq', '$x-cos-debug', 'true'], // 开启调试模式
+      ],
     };
+
+    // 2. 将 policy 转为 Base64 编码
+    const policyStr = JSON.stringify(policy);
+    const encodedPolicy = Buffer.from(policyStr).toString('base64');
+
+    // 3. 用 SecretKey 对 encodedPolicy 进行 HMAC-SHA1 加密，生成 signature
+    const signature = crypto
+      .createHmac('sha1', secretKey)
+      .update(encodedPolicy)
+      .digest('base64');
 
     // 优先使用主密钥方式，避免AssumeRole权限问题
     try {
@@ -79,7 +83,9 @@ export async function generateCosTempKeys(): Promise<CosTempKeys> {
         secretKey,
         region,
         bucket,
-        expiredTime
+        expiredTime,
+        policy: encodedPolicy,
+        signature,
       };
       
       // 记录使用主密钥的信息
