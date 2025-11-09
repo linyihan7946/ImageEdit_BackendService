@@ -275,8 +275,11 @@ export class CosUploader {
       // 转换Base64字符串为Buffer
       const buffer = Buffer.from(base64Data, 'base64');
       
-      // 生成唯一的存储路径
-      const cosPath = this.generateUniqueFilePathForBuffer(ext, buffer, 'uploads');
+      // 直接生成包含正确扩展名的存储路径
+      const md5Hash = this.calculateMD5(buffer);
+      // 确保扩展名正确添加，处理ext可能已经包含.的情况
+      const normalizedExt = ext.startsWith('.') ? ext : `.${ext}`;
+      const cosPath = `uploads/${md5Hash}${normalizedExt}`;
       
       // 使用现有的uploadBuffer方法上传数据
       return await this.uploadBuffer(buffer, cosPath, options);
