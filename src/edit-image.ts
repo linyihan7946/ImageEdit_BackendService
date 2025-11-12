@@ -310,6 +310,7 @@ export function setupEditImageRoute(app: Express): void {
           user_id: userId,
           prompt: instruction,
           input_images: JSON.stringify(imageUrls),
+          output_image: JSON.stringify(images),
           status: 1, // 1表示成功
           cost: 0 // 可以根据实际情况设置成本
         });
