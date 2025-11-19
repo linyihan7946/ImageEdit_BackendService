@@ -5,6 +5,7 @@ import * as path from 'path';
 import { EditRecordModel } from './models';
 import { cosUploader } from './cos-upload';
 import { base64ToImage } from './image-utils';
+import { authMiddleware } from './wechat-auth';
 
 // 从环境变量中读取API端点配置
 const API_ENDPOINT = process.env.API_ENDPOINT || 'https://api.apiyi.com/v1/chat/completions';
@@ -21,7 +22,7 @@ if (!fs.existsSync(IMAGES_DIR)) {
 
 export function setupEditImageNewRoute(app: Express): void {
   // 新的图片编辑接口 - 支持contents格式
-  app.post('/edit-image-new', async (req: Request, res: Response) => {
+  app.post('/edit-image-new', authMiddleware(), async (req: Request, res: Response) => {
     console.log('收到新格式图片编辑请求');
     const API_KEY = process.env.API_KEY || '';
     
@@ -196,7 +197,7 @@ export function setupEditImageNewRoute(app: Express): void {
  */
 export function setupEditImageRoute(app: Express): void {
   // 图片编辑接口转发
-  app.post('/edit-image', async (req: Request, res: Response) => {
+  app.post('/edit-image', authMiddleware(), async (req: Request, res: Response) => {
     console.log('收到图片编辑请求');
     const API_KEY = process.env.API_KEY || '';
     
@@ -294,9 +295,6 @@ export function setupEditImageRoute(app: Express): void {
       
       // 记录操作到数据库
       try {
-        // 尝试从请求中获取用户ID，如果没有则使用默认值0表示未登录用户
-        
-        
         // 创建编辑记录
         const recordId = await EditRecordModel.create({
           user_id: userId,
