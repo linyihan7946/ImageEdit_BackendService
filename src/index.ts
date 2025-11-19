@@ -113,7 +113,7 @@ setupCosAuthRoute(app);
 // 获取用户今日使用次数
 app.get('/api/user/today-usage', authMiddleware(), async (req: Request, res: Response) => {
   try {
-    console.log(req);
+    
     // @ts-ignore
     const userId = req.user?.userId || 0;
     

@@ -26,6 +26,7 @@ export function setupEditImageNewRoute(app: Express): void {
     const API_KEY = process.env.API_KEY || '';
     
     const req1: any = req;
+    const userId = req1.user?.userId || 0;
     try {
       // 从请求体中获取参数
       // mime_type:  "image/jpeg"
@@ -108,9 +109,6 @@ export function setupEditImageNewRoute(app: Express): void {
       
       // 记录操作到数据库
       try {
-        // 尝试从请求中获取用户ID，如果没有则使用默认值0表示未登录用户
-        const userId = req1.user?.id || 0;
-        
         // 创建编辑记录
         const recordId = await EditRecordModel.create({
           user_id: userId,
@@ -151,9 +149,6 @@ export function setupEditImageNewRoute(app: Express): void {
       
       // 记录失败操作到数据库
       try {
-        // 尝试从请求中获取用户ID，如果没有则使用默认值0表示未登录用户
-        const userId = req1.user?.id || 0;
-        
         // 创建失败的编辑记录
         await EditRecordModel.create({
           user_id: userId,
@@ -206,6 +201,7 @@ export function setupEditImageRoute(app: Express): void {
     const API_KEY = process.env.API_KEY || '';
     
     const req1: any = req;
+    const userId = req1.user?.userId || 0;
     try {
       // 从请求体中获取参数
       const { instruction, imageUrls } = req.body;
@@ -293,17 +289,13 @@ export function setupEditImageRoute(app: Express): void {
           contentType: 'image/png'
         });
         images.push(imageUrl);
-        // console.log("base64:", base64);
-        // const imagePath = path.join(IMAGES_DIR, 'image_' + timestamp + '_' + i + '.png');
-        // await base64ToImage(base64, imagePath);
-        // console.log('图片已保存到:', imagePath);
       }
       console.log("images:", images);
       
       // 记录操作到数据库
       try {
         // 尝试从请求中获取用户ID，如果没有则使用默认值0表示未登录用户
-        const userId = req1.user?.id || 0;
+        
         
         // 创建编辑记录
         const recordId = await EditRecordModel.create({
@@ -332,10 +324,7 @@ export function setupEditImageRoute(app: Express): void {
       console.error('图片编辑请求失败:', error.message || error);
       
       // 记录失败操作到数据库
-      try {
-        // 尝试从请求中获取用户ID，如果没有则使用默认值0表示未登录用户
-        const userId = req1.user?.id || 0;
-        
+      try { 
         // 创建失败的编辑记录
         await EditRecordModel.create({
           user_id: userId,
