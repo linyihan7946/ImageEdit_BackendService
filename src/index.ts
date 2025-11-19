@@ -7,6 +7,7 @@ import { wechatLogin, authMiddleware } from './wechat-auth';
 import { WechatLoginParams } from './wechat-auth';
 import { setupEditImageRoute, setupEditImageNewRoute } from './edit-image';
 import { setupCosAuthRoute } from './cos-auth';
+import { EditRecordModel } from './models';
 import bodyParser from 'body-parser';
 // const bodyParser = require('body-parser');
 
@@ -108,6 +109,31 @@ setupEditImageNewRoute(app);
 
 // 设置COS授权路由
 setupCosAuthRoute(app);
+
+// 获取用户今日使用次数
+app.get('/api/user/today-usage', authMiddleware(), async (req: Request, res: Response) => {
+  try {
+    // @ts-ignore
+    const userId = req.user.id;
+    
+    // 获取用户今日编辑次数
+    const todayCount = await EditRecordModel.getUserTodayCount(userId);
+    
+    res.json({
+      success: true,
+      data: {
+        todayUsage: todayCount,
+        maxFreeUsage: 3
+      }
+    });
+  } catch (error) {
+    console.error('获取用户今日使用次数失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取使用次数失败'
+    });
+  }
+});
 
 // 接收Base64图片并上传到COS的路由
 app.post('/api/upload-base64-to-cos', async (req: Request, res: Response) => {
