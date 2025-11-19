@@ -113,9 +113,16 @@ setupCosAuthRoute(app);
 // 获取用户今日使用次数
 app.get('/api/user/today-usage', authMiddleware(), async (req: Request, res: Response) => {
   try {
+    console.log(req);
     // @ts-ignore
-    const req1: any = req;
-    const userId = req1.user?.id || 0;
+    const userId = req.user?.userId || 0;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: '用户未登录'
+      });
+    }
     
     // 获取用户今日编辑次数
     const todayCount = await EditRecordModel.getUserTodayCount(userId);
