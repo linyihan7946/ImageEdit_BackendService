@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
   status TINYINT DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 创建编辑记录表
 CREATE TABLE IF NOT EXISTS edit_records (
@@ -20,8 +20,8 @@ CREATE TABLE IF NOT EXISTS edit_records (
   status TINYINT DEFAULT 0,
   cost DECIMAL(10,2) DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id)
-);
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 创建用户余额表
 CREATE TABLE IF NOT EXISTS user_balances (
@@ -30,13 +30,15 @@ CREATE TABLE IF NOT EXISTS user_balances (
   balance DECIMAL(10,2) DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id)
-);
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 创建索引以提高查询性能
 CREATE INDEX idx_edit_records_user_id ON edit_records(user_id);
 CREATE INDEX idx_edit_records_created_at ON edit_records(created_at);
 CREATE INDEX idx_users_openid ON users(openid);
+CREATE INDEX idx_user_balances_user_id ON user_balances(user_id);
+CREATE INDEX idx_system_config_key ON system_config(config_key);
 
 -- 插入测试数据（可选）
 INSERT INTO users (openid, nickname, avatar_url, last_login_time, status) 
@@ -48,7 +50,7 @@ INSERT INTO user_balances (user_id, balance)
 VALUES (LAST_INSERT_ID(), 0) 
 ON DUPLICATE KEY UPDATE balance = VALUES(balance);
 
--- 创建.env.example文件用于本地开发
+-- 创建系统配置表
 CREATE TABLE IF NOT EXISTS system_config (
   id INT PRIMARY KEY AUTO_INCREMENT,
   config_key VARCHAR(50) NOT NULL UNIQUE,
@@ -56,7 +58,7 @@ CREATE TABLE IF NOT EXISTS system_config (
   description VARCHAR(255),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 插入系统配置默认值
 INSERT INTO system_config (config_key, config_value, description) VALUES
