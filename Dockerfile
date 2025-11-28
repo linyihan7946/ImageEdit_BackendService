@@ -16,8 +16,7 @@ COPY . .
 # 编译TypeScript
 RUN npm run build
 
-# 清理开发依赖，只保留生产依赖
-RUN npm prune --production
+# 保留所有依赖（开发和生产）
 
 # 创建必要的目录
 RUN mkdir -p /app/images && mkdir -p /app/temp
@@ -26,6 +25,7 @@ RUN mkdir -p /app/images && mkdir -p /app/temp
 RUN if [ ! -f .env ]; then cp .env.example .env; fi
 
 # 设置环境变量
+# 注意：开发依赖已保留，如需开发模式可将NODE_ENV设置为development
 ENV NODE_ENV production
 
 # 暴露端口
