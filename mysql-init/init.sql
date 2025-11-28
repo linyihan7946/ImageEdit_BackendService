@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS edit_record (
   cost DECIMAL(10,2) DEFAULT 0,
   created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   completed_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 创建用户余额表
@@ -29,13 +29,13 @@ CREATE TABLE IF NOT EXISTS user_balance (
   user_id INT NOT NULL UNIQUE,
   balance DECIMAL(10,2) DEFAULT 0,
   updated_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 创建索引以提高查询性能
 CREATE INDEX idx_edit_record_user_id ON edit_record(user_id);
 CREATE INDEX idx_edit_record_created_at ON edit_record(created_time);
-CREATE INDEX idx_users_openid ON users(openid);
+CREATE INDEX idx_user_openid ON user(openid);
 CREATE INDEX idx_user_balance_user_id ON user_balance(user_id);
 CREATE INDEX idx_system_config_key ON system_config(config_key);
 
