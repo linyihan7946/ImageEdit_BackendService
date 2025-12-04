@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { EditRecordModel } from './models';
 import { cosUploader } from './cos-upload';
-import { base64ToImage } from './image-utils';
+import { base64ToImage, getImageMimeTypeFromUrl, imageUrlToBase64 } from './image-utils';
 import { authMiddleware } from './wechat-auth';
 
 // 从环境变量中读取API端点配置
@@ -19,7 +19,10 @@ if (!fs.existsSync(IMAGES_DIR)) {
 }
 
 
-
+/**
+ * 新的编辑图片的接口：指定长宽比
+ * @param app 
+ */
 export function setupEditImageNewRoute(app: Express): void {
   // 新的图片编辑接口 - 支持contents格式
   app.post('/edit-image-new', authMiddleware(), async (req: Request, res: Response) => {
@@ -32,7 +35,7 @@ export function setupEditImageNewRoute(app: Express): void {
       // 从请求体中获取参数
       // mime_type:  "image/jpeg"
       // aspectRatio: "16:9"
-      const { instruction, aspectRatio, base64ImageData, mime_type } = req.body;
+      const { instruction, aspectRatio, imageUrls } = req.body;
       
       if (!instruction) {
         return res.status(400).json({ 
@@ -41,12 +44,22 @@ export function setupEditImageNewRoute(app: Express): void {
         });
       }
       
-      if (!base64ImageData) {
+      if (!imageUrls || imageUrls.length === 0) {
         return res.status(400).json({ 
           success: false, 
           message: '缺少图片数据' 
         });
       }
+
+      if (!aspectRatio) {
+        return res.status(400).json({ 
+          success: false, 
+          message: '缺少长宽比' 
+        });
+      }
+      const mime_type = getImageMimeTypeFromUrl(imageUrls[0]);
+
+      const base64ImageData = imageUrlToBase64(imageUrls[0]);
       
       // 构建转发请求体（转换为原有API所需格式）
       const requestBody = {
@@ -115,6 +128,7 @@ export function setupEditImageNewRoute(app: Express): void {
           user_id: userId,
           prompt: instruction,
           input_images: JSON.stringify([{ type: 'base64_image' }]),
+          output_image: JSON.stringify(images),
           status: 1, // 1表示成功
           cost: 0 // 可以根据实际情况设置成本
         });
@@ -125,24 +139,10 @@ export function setupEditImageNewRoute(app: Express): void {
         // 数据库错误不影响API响应返回
       }
       
-      // 返回API响应
-      const responseData = {
-        contents: images.map(url => ({
-          parts: [
-            {
-              inline_data: {
-                mime_type,
-                data: url // 返回URL而不是base64，前端可以直接使用
-              }
-            }
-          ]
-        }))
-      };
-      
       res.json({
         success: true,
         message: '图片编辑请求处理成功',
-        data: responseData
+        data: {images}
       });
       
     } catch (error: any) {

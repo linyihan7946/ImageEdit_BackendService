@@ -67,3 +67,52 @@ export async function imageUrlToBase64(imageUrl: string): Promise<string> {
     throw new Error(`图片URL转Base64失败：${error instanceof Error ? error.message : String(error)}`);
   }
 }
+
+
+/**
+ * 根据URL获取图片的MIME类型
+ * @param url 图片URL地址
+ * @returns string 图片的MIME类型，如image/jpeg, image/png等
+ */
+export const getImageMimeTypeFromUrl = (url: string): string => {
+  if (!url || typeof url !== 'string') {
+    return 'image/jpeg'; // 默认返回JPEG格式
+  }
+  
+  try {
+    // 解析URL，移除查询参数
+    // 微信小程序环境不支持原生URL构造函数，手动解析
+    let pathname = url.split('?')[0]; // 去掉查询参数
+    if (pathname.indexOf('://') > -1) {
+      // 带协议，取path部分
+      pathname = '/' + pathname.split('/').slice(3).join('/');
+    }
+    
+    // 获取文件扩展名
+    const parts = pathname.split('.');
+    if (parts.length < 2) {
+      return 'image/jpeg'; // 默认返回JPEG格式
+    }
+    
+    const extension = parts.pop()?.toLowerCase() || '';
+    
+    // 根据扩展名映射到MIME类型
+    const mimeTypes: Record<string, string> = {
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'gif': 'image/gif',
+      'webp': 'image/webp',
+      'bmp': 'image/bmp',
+      'svg': 'image/svg+xml',
+      'tif': 'image/tiff',
+      'tiff': 'image/tiff'
+    };
+    
+    // 返回对应的MIME类型，如果没有匹配的则返回默认值
+    return mimeTypes[extension] || 'image/jpeg';
+  } catch (error) {
+    console.error('解析图片URL获取MIME类型失败:', error);
+    return 'image/jpeg'; // 解析失败时返回默认值
+  }
+};
