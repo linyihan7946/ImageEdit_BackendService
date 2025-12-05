@@ -68,6 +68,37 @@ export async function imageUrlToBase64(imageUrl: string): Promise<string> {
   }
 }
 
+/**
+ * 将图片URL转换为Base64字符串
+ * @param {string} imageUrl - 图片URL
+ * @returns {Promise<string>} - Base64字符串（包含格式头，如 data:image/png;base64,xxx）
+ */
+export async function imageUrlToBase64Simple(imageUrl: string): Promise<string> {
+  try {
+    // 发送GET请求获取图片数据
+    const response = await axios.get(imageUrl, {
+      responseType: 'arraybuffer',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
+    });
+
+    // 从响应头获取Content-Type
+    const contentType = response.headers['content-type'] || 'image/jpeg';
+    
+    // 将响应数据转换为Buffer
+    const buffer = Buffer.from(response.data, 'binary');
+    
+    // 将Buffer转换为Base64字符串
+    const base64String = buffer.toString('base64');
+    
+    // 返回带格式头的Base64字符串
+    return base64String;
+  } catch (error) {
+    throw new Error(`图片URL转Base64失败：${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 
 /**
  * 根据URL获取图片的MIME类型

@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { EditRecordModel } from './models';
 import { cosUploader } from './cos-upload';
-import { base64ToImage, getImageMimeTypeFromUrl, imageUrlToBase64 } from './image-utils';
+import { base64ToImage, getImageMimeTypeFromUrl, imageUrlToBase64, imageUrlToBase64Simple } from './image-utils';
 import { authMiddleware } from './wechat-auth';
 
 // 从环境变量中读取API端点配置
@@ -59,7 +59,8 @@ export function setupEditImageNewRoute(app: Express): void {
       }
       const mime_type = getImageMimeTypeFromUrl(imageUrls[0]);
 
-      const base64ImageData = imageUrlToBase64(imageUrls[0]);
+      const base64ImageData = await imageUrlToBase64Simple(imageUrls[0]);
+      console.log('base64ImageData:', base64ImageData);
       
       // 构建转发请求体（转换为原有API所需格式）
       const requestBody = {
@@ -99,24 +100,28 @@ export function setupEditImageNewRoute(app: Express): void {
       // 处理响应
       const images: string[] = [];
       const data = response.data;
-      const choices: any[] = data.choices || [];
+      const candidates: any[] = data.candidates || [];
       
-      for (let i = 0; i < choices.length; i++) {
-        const choice = choices[i];
-        const message = choice.message;
-        if (!message) continue;
-        
-        const content: string = message.content;
-        const first = content.indexOf("(");
-        const last = content.indexOf(")");
-        
-        if (first !== -1 && last !== -1) {
-          const base64 = content.substring(first + 1, last);
-          const imageUrl = await cosUploader.uploadBase64(base64, '.png', {
-            contentType: 'image/png'
-          });
-          images.push(imageUrl);
+      for (let i = 0; i < candidates.length; i++) {
+        const candidate = candidates[i];
+        const content = candidate.content || '';
+        if (!content) continue;
+        const parts: any[] = content.parts || [];
+        if (!parts || parts.length === 0) continue;
+        const part = parts[0];
+        const inlineData = part.inlineData;
+        if (!inlineData) {
+          continue;
         }
+        const data = inlineData.data || '';
+        if (!data) {
+          continue;
+        }
+        const base64 = data;
+        const imageUrl = await cosUploader.uploadBase64(base64, '.png', {
+          contentType: 'image/png'
+        });
+        images.push(imageUrl);
       }
       
       console.log("生成的图片URLs:", images);
