@@ -8,8 +8,9 @@ import { base64ToImage, getImageMimeTypeFromUrl, imageUrlToBase64, imageUrlToBas
 import { authMiddleware } from './wechat-auth';
 
 // 从环境变量中读取API端点配置
-const API_ENDPOINT = process.env.API_ENDPOINT || 'https://api.apiyi.com/v1/chat/completions';
-const API_EDITIMAGE_NEW = process.env.API_EDITIMAGE_NEW || 'https://api.apiyi.com/v1beta/models/gemini-2.5-flash-image:generateContent';
+const API_ENDPOINT = process.env.API_ENDPOINT as string || '';
+const API_EDITIMAGE_NEW = process.env.API_EDITIMAGE_NEW as string || '';
+const API_GEMINI_PRO_IMAGE = process.env.API_GEMINI_PRO_IMAGE as string || '';
 
 // 确保图片保存目录存在
 const IMAGES_DIR = path.join(__dirname, '../images');
@@ -182,6 +183,160 @@ export function setupEditImageNewRoute(app: Express): void {
         res.status(504).json({
           success: false,
           message: 'API请求超时或无响应',
+          error: 'Network Error'
+        });
+      } else {
+        // 其他错误
+        res.status(500).json({
+          success: false,
+          message: '服务器内部错误',
+          error: error.message || 'Unknown Error'
+        });
+      }
+    }
+  });
+}
+
+/**
+ * Gemini 3 Pro图片生成接口：支持生成高质量图片
+ * @param app 
+ */
+export function setupGeminiImageGenerateRoute(app: Express): void {
+  // Gemini 3 Pro图片生成接口 - 支持高质量图片生成
+  app.post('/gemini-image-generate', authMiddleware(), async (req: Request, res: Response) => {
+    console.log('收到Gemini 3 Pro图片生成请求');
+    const API_KEY = process.env.API_KEY || '';
+    
+    const req1: any = req;
+    const userId = req1.user?.userId || 0;
+    try {
+      // 从请求体中获取参数
+      const { prompt, imageUrls, aspectRatio = '16:9', imageSize = '2K' } = req.body;
+      
+      if (!prompt) {
+        return res.status(400).json({ 
+          success: false, 
+          message: '缺少图片生成提示词' 
+        });
+      }
+      
+      if (!imageUrls || imageUrls.length === 0) {
+        return res.status(400).json({ 
+          success: false, 
+          message: '缺少图片数据' 
+        });
+      }
+
+      // 获取图片的MIME类型
+      const mime_type = getImageMimeTypeFromUrl(imageUrls[0]);
+
+      // 将图片URL转换为base64格式
+      const base64ImageData = await imageUrlToBase64Simple(imageUrls[0]);
+      console.log('图片转换为base64成功');
+      
+      // 构建请求体，与Python示例保持一致
+      const requestBody = {
+        "contents": [{
+          "parts": [
+            {"text": prompt},
+            {"inline_data": {"mime_type": mime_type, "data": base64ImageData}}
+          ]
+        }],
+        "generationConfig": {
+          "responseModalities": ["IMAGE"],
+          "imageConfig": {"aspectRatio": aspectRatio, "imageSize": imageSize}
+        }
+      };
+      
+      console.log('转发到Gemini API的请求体:', JSON.stringify(requestBody, null, 2));
+      
+      // 发送请求到Gemini API，设置5分钟超时
+      const response = await axios.post(API_GEMINI_PRO_IMAGE, requestBody, {
+        headers: {
+          "Authorization": `Bearer ${API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 300000 // 5分钟超时
+      });
+      
+      // 处理API响应
+      const data = response.data;
+      const images: string[] = [];
+      
+      if (data.candidates && data.candidates.length > 0) {
+        // 获取生成的图片数据
+        const img_data = data.candidates[0].content.parts[0].inlineData.data;
+        
+        // 将生成的图片上传到COS
+        const imageUrl = await cosUploader.uploadBase64(img_data, '.png', {
+          contentType: 'image/png'
+        });
+        
+        images.push(imageUrl);
+      }
+      
+      console.log("生成的图片URLs:", images);
+      
+      // 记录操作到数据库
+      try {
+        // 创建编辑记录
+        const recordId = await EditRecordModel.create({
+          user_id: userId,
+          prompt: prompt,
+          input_images: JSON.stringify(imageUrls),
+          output_image: JSON.stringify(images),
+          status: 1, // 1表示成功
+          cost: 0 // 可以根据实际情况设置成本
+        });
+        
+        console.log(`操作已成功记录到数据库，记录ID: ${recordId}`);
+      } catch (dbError) {
+        console.error('记录操作到数据库失败:', dbError);
+        // 数据库错误不影响API响应返回
+      }
+      
+      res.json({
+        success: true,
+        message: 'Gemini图片生成请求处理成功',
+        data: {images}
+      });
+      
+    } catch (error: any) {
+        console.error('Gemini图片生成请求失败:', error.message || error);
+        
+        // 获取安全的prompt和imageUrls值
+        const safePrompt = req.body?.prompt || '';
+        const safeImageUrls = req.body?.imageUrls || [];
+        
+        // 记录失败操作到数据库
+        try {
+          // 创建失败的编辑记录
+          await EditRecordModel.create({
+            user_id: userId,
+            prompt: safePrompt,
+            input_images: JSON.stringify(safeImageUrls),
+            status: 2, // 2表示失败
+            cost: 0
+          });
+          
+          console.log('失败操作已记录到数据库');
+        } catch (dbError) {
+          console.error('记录失败操作到数据库失败:', dbError);
+        }
+      
+      // 处理错误响应
+      if (error.response) {
+        // 服务器返回了错误状态码
+        res.status(error.response.status || 500).json({
+          success: false,
+          message: 'Gemini API调用失败',
+          error: error.response.data || error.message
+        });
+      } else if (error.request) {
+        // 请求已发送但没有收到响应
+        res.status(504).json({
+          success: false,
+          message: 'Gemini API请求超时或无响应',
           error: 'Network Error'
         });
       } else {
