@@ -198,11 +198,11 @@ export function setupEditImageNewRoute(app: Express): void {
 }
 
 /**
- * Gemini 3 Pro图片生成接口：支持生成高质量图片
+ * Gemini 3 Pro图片生成接口：支持多张图片合成
  * @param app 
  */
 export function setupGeminiImageGenerateRoute(app: Express): void {
-  // Gemini 3 Pro图片生成接口 - 支持高质量图片生成
+  // Gemini 3 Pro图片生成接口 - 支持多张图片合成
   app.post('/gemini-image-generate', authMiddleware(), async (req: Request, res: Response) => {
     console.log('收到Gemini 3 Pro图片生成请求');
     const API_KEY = process.env.API_KEY || '';
@@ -227,37 +227,59 @@ export function setupGeminiImageGenerateRoute(app: Express): void {
         });
       }
 
-      // 获取图片的MIME类型
-      const mime_type = getImageMimeTypeFromUrl(imageUrls[0]);
+      // 设置超时时间映射，与Python代码保持一致
+      const TIMEOUT_MAP: { [key: string]: number } = { "1K": 180, "2K": 300, "4K": 360 };
+      const timeout = TIMEOUT_MAP[imageSize] || 300; // 默认5分钟超时
 
-      // 将图片URL转换为base64格式
-      const base64ImageData = await imageUrlToBase64Simple(imageUrls[0]);
-      console.log('图片转换为base64成功');
+      // 准备parts数组，包含所有图片和文本提示
+      const parts: any[] = [];
+      
+      // 处理每张图片，转换为base64格式
+      console.log(`📤 正在读取 ${imageUrls.length} 张图片...`);
+      for (let i = 0; i < imageUrls.length; i++) {
+        const imageUrl = imageUrls[i];
+        const mime_type = getImageMimeTypeFromUrl(imageUrl);
+        const base64ImageData = await imageUrlToBase64Simple(imageUrl);
+        
+        parts.push({
+          "inline_data": {
+            "mime_type": mime_type,
+            "data": base64ImageData
+          }
+        });
+        console.log(`✅ 图片 ${i + 1} (${mime_type})`);
+      }
+      
+      // 添加编辑指令
+      parts.push({"text": prompt});
       
       // 构建请求体，与Python示例保持一致
       const requestBody = {
-        "contents": [{
-          "parts": [
-            {"text": prompt},
-            {"inline_data": {"mime_type": mime_type, "data": base64ImageData}}
-          ]
-        }],
+        "contents": [{"parts": parts}],
         "generationConfig": {
           "responseModalities": ["IMAGE"],
-          "imageConfig": {"aspectRatio": aspectRatio, "imageSize": imageSize}
+          "imageConfig": {
+            "aspectRatio": aspectRatio,
+            "imageSize": imageSize
+          }
         }
       };
       
+      console.log(`⏳ 正在处理，预计 ${timeout / 60} 分钟...`);
+      const startTime = Date.now();
       console.log('转发到Gemini API的请求体:', JSON.stringify(requestBody, null, 2));
       
-      // 发送请求到Gemini API，设置5分钟超时
+      // 发送请求到Gemini API，使用动态超时时间
       const response = await axios.post(API_GEMINI_PRO_IMAGE, requestBody, {
         headers: {
           "Authorization": `Bearer ${API_KEY}`,
           'Content-Type': 'application/json'
         },
-        timeout: 300000 // 5分钟超时
+        timeout: timeout * 1000 // 转换为毫秒
       });
+      
+      const elapsed = (Date.now() - startTime) / 1000;
+      console.log(`⏱️  实际用时: ${elapsed.toFixed(1)} 秒`);
       
       // 处理API响应
       const data = response.data;
@@ -267,12 +289,17 @@ export function setupGeminiImageGenerateRoute(app: Express): void {
         // 获取生成的图片数据
         const img_data = data.candidates[0].content.parts[0].inlineData.data;
         
+        // 生成文件名，与Python代码保持一致
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+        const fileName = `edited_${timestamp}.png`;
+        
         // 将生成的图片上传到COS
         const imageUrl = await cosUploader.uploadBase64(img_data, '.png', {
           contentType: 'image/png'
         });
         
         images.push(imageUrl);
+        console.log(`✅ 编辑成功！已保存至: ${imageUrl}`);
       }
       
       console.log("生成的图片URLs:", images);
