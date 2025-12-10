@@ -395,6 +395,27 @@ app.post('/api/upload-base64-to-cos', async (req: Request, res: Response) => {
   }
 });
 
+// 配置信息接口
+app.get('/api/config', (req: Request, res: Response) => {
+  try {
+    // 返回前端需要的配置信息
+    const config = {
+      dishIngredientReferenceImage: process.env.DISH_INGREDIENT_REFERENCE_IMAGE || '',// 菜品用料图参考图
+    };
+    
+    res.json({
+      success: true,
+      data: config
+    });
+  } catch (error) {
+    console.error('获取配置信息失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取配置信息失败'
+    });
+  }
+});
+
 // 启动服务器
 app.listen(PORT, () => {
   console.log(`服务器正在运行，访问地址: http://localhost:${PORT}`);
