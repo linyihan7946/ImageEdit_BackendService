@@ -61,7 +61,6 @@ export function setupEditImageNewRoute(app: Express): void {
       const mime_type = getImageMimeTypeFromUrl(imageUrls[0]);
 
       const base64ImageData = await imageUrlToBase64Simple(imageUrls[0]);
-      console.log('base64ImageData:', base64ImageData);
       
       // 构建转发请求体（转换为原有API所需格式）
       const requestBody = {
@@ -267,7 +266,6 @@ export function setupGeminiImageGenerateRoute(app: Express): void {
       
       console.log(`⏳ 正在处理，预计 ${timeout / 60} 分钟...`);
       const startTime = Date.now();
-      console.log('转发到Gemini API的请求体:', JSON.stringify(requestBody, null, 2));
       
       // 发送请求到Gemini API，使用动态超时时间
       const response = await axios.post(API_GEMINI_PRO_IMAGE, requestBody, {

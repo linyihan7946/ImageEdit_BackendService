@@ -317,13 +317,6 @@ async function testCosUpload() {
     const cosPath = cosUploader.generateUniqueFilePath(testImagePath, 'test-uploads');
     console.log(`将上传到COS路径: ${cosPath}`);
     
-    // 定义上传进度回调
-    // const onProgress = (progressData: { loaded: number; total: number; speed: number }) => {
-    //   const percent = ((progressData.loaded / progressData.total) * 100).toFixed(2);
-    //   const speed = (progressData.speed / 1024 / 1024).toFixed(2); // MB/s
-    //   console.log(`上传进度: ${percent}%, 速度: ${speed} MB/s`);
-    // };
-    
     // 执行上传
     console.log(`开始上传文件: ${testImagePath}`);
     const fileUrl = await cosUploader.uploadFile(testImagePath, cosPath, {
@@ -334,10 +327,6 @@ async function testCosUpload() {
     // 上传成功
     console.log('✓ 文件上传成功!');
     console.log(`访问URL: ${fileUrl}`);
-    
-    // // 测试获取文件URL功能
-    // const generatedUrl = cosUploader.getFileUrl(cosPath);
-    // console.log(`生成的URL: ${generatedUrl}`);
     
     // 测试Base64上传功能
     console.log('\n开始测试Base64上传...');
