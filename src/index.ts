@@ -10,7 +10,7 @@ import { setupCosAuthRoute } from './cos-auth';
 import { EditRecordModel } from './models';
 import bodyParser from 'body-parser';
 import uploadRouter from './routes/upload';
-// const bodyParser = require('body-parser');
+import configRouter from './routes/config';
 
 
 
@@ -29,6 +29,7 @@ app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
 
 // 使用上传路由
 app.use('/api', uploadRouter);
+app.use('/api', configRouter);
 
 // 微信登录路由
 app.post('/api/wechat/login', async (req: Request, res: Response) => {
@@ -150,26 +151,7 @@ app.get('/api/user/today-usage', authMiddleware(), async (req: Request, res: Res
 
 
 
-// 配置信息接口
-app.get('/api/config', (req: Request, res: Response) => {
-  try {
-    // 返回前端需要的配置信息
-    const config = {
-      dishIngredientReferenceImage: process.env.DISH_INGREDIENT_REFERENCE_IMAGE || '',// 菜品用料图参考图
-    };
-    
-    res.json({
-      success: true,
-      data: config
-    });
-  } catch (error) {
-    console.error('获取配置信息失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '获取配置信息失败'
-    });
-  }
-});
+
 
 // 启动服务器
 app.listen(PORT, () => {
