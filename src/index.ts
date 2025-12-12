@@ -11,6 +11,7 @@ import { EditRecordModel } from './models';
 import bodyParser from 'body-parser';
 import uploadRouter from './routes/upload';
 import configRouter from './routes/config';
+import balanceRouter from './routes/balance';
 
 
 
@@ -30,6 +31,7 @@ app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
 // 使用上传路由
 app.use('/api', uploadRouter);
 app.use('/api', configRouter);
+app.use('/api', balanceRouter);
 
 // 微信登录路由
 app.post('/api/wechat/login', async (req: Request, res: Response) => {
