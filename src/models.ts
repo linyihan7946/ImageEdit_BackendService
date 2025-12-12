@@ -51,6 +51,21 @@ export interface DeductRecord {
   remark?: string;
 }
 
+/**
+ * 充值记录表类型定义
+ */
+export interface RechargeRecord {
+  id: number;
+  user_id: number;
+  amount: number;
+  balance_after: number;
+  payment_transaction_id: string; // 支付交易ID
+  status: number; // 0 - 待支付，1 - 成功，2 - 失败
+  created_time: Date;
+  completed_time?: Date;
+  remark?: string;
+}
+
 // 用户表操作
 export const UserModel = {
   /**
@@ -274,6 +289,73 @@ export const UserBalanceModel = {
       console.error('余额扣除失败:', error);
       return false;
     }
+  }
+};
+
+// 充值记录表操作
+export const RechargeRecordModel = {
+  /**
+   * 根据ID获取充值记录
+   */
+  async findById(id: number): Promise<RechargeRecord | null> {
+    const results = await queryDB('SELECT * FROM recharge_record WHERE id = ?', [id]);
+    return results.length > 0 ? results[0] as RechargeRecord : null;
+  },
+
+  /**
+   * 获取用户的充值记录列表
+   */
+  async findByUserId(userId: number, limit: number = 20, offset: number = 0): Promise<RechargeRecord[]> {
+    const results = await queryDB(
+      'SELECT * FROM recharge_record WHERE user_id = ? ORDER BY created_time DESC LIMIT ? OFFSET ?',
+      [userId, limit, offset]
+    );
+    return results as RechargeRecord[];
+  },
+
+  /**
+   * 获取用户今日充值总额
+   */
+  async getUserTodayTotal(userId: number): Promise<number> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const results = await queryDB(
+      'SELECT SUM(amount) as total FROM recharge_record WHERE user_id = ? AND created_time >= ? AND status = 1',
+      [userId, today]
+    );
+    
+    return results[0]?.total || 0;
+  },
+
+  /**
+   * 新增充值记录
+   */
+  async create(data: Omit<RechargeRecord, 'id' | 'created_time' | 'completed_time'>): Promise<number> {
+    return await insertDB('recharge_record', {
+      ...data,
+      created_time: new Date()
+    });
+  },
+
+  /**
+   * 更新充值记录状态
+   */
+  async updateStatus(id: number, status: number): Promise<number> {
+    const updateData: Partial<RechargeRecord> = {
+      status,
+      completed_time: new Date()
+    };
+    
+    return await updateDB('recharge_record', updateData, `id = ${id}`);
+  },
+
+  /**
+   * 根据支付交易ID获取充值记录
+   */
+  async findByTransactionId(transactionId: string): Promise<RechargeRecord | null> {
+    const results = await queryDB('SELECT * FROM recharge_record WHERE payment_transaction_id = ?', [transactionId]);
+    return results.length > 0 ? results[0] as RechargeRecord : null;
   }
 };
 
