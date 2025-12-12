@@ -319,6 +319,16 @@ export const DeductRecordModel = {
     );
     
     return results[0]?.total || 0;
+  },
+
+  /**
+   * 新增扣款记录
+   */
+  async create(data: Omit<DeductRecord, 'id' | 'created_time'>): Promise<number> {
+    return await insertDB('deduct_record', {
+      ...data,
+      created_time: new Date()
+    });
   }
 };
 
