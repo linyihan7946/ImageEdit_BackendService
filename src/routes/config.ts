@@ -9,6 +9,7 @@ router.get('/config', (req, res) => {
     const config = {
       dishIngredientReferenceImage: process.env.DISH_INGREDIENT_REFERENCE_IMAGE || '',// 菜品用料图参考图
       freeEditCount: Configure.freeEditCount, // 免费编辑次数
+      deductAmount: Configure.deductAmount, // 扣款金额
     };
 
     res.json({
