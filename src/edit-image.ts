@@ -2,10 +2,11 @@ import { Request, Response, Express } from 'express';
 import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
-import { EditRecordModel } from './models';
+import { DeductRecordModel, EditRecordModel, UserBalanceModel } from './models';
 import { cosUploader } from './cos-upload';
 import { base64ToImage, getImageMimeTypeFromUrl, imageUrlToBase64, imageUrlToBase64Simple } from './image-utils';
 import { authMiddleware } from './wechat-auth';
+import { Configure } from './configure';
 
 // 从环境变量中读取API端点配置
 const API_ENDPOINT = process.env.API_ENDPOINT as string || '';
@@ -126,74 +127,103 @@ export function setupEditImageNewRoute(app: Express): void {
       
       console.log("生成的图片URLs:", images);
       
-      // 记录操作到数据库
-      try {
-        // 创建编辑记录
-        const recordId = await EditRecordModel.create({
-          user_id: userId,
-          prompt: instruction,
-          input_images: JSON.stringify([{ type: 'base64_image' }]),
-          output_image: JSON.stringify(images),
-          status: 1, // 1表示成功
-          cost: 0 // 可以根据实际情况设置成本
-        });
-        
-        console.log(`操作已成功记录到数据库，记录ID: ${recordId}`);
-      } catch (dbError) {
-        console.error('记录操作到数据库失败:', dbError);
-        // 数据库错误不影响API响应返回
-      }
-      
-      res.json({
-        success: true,
-        message: '图片编辑请求处理成功',
-        data: {images}
-      });
+      // 处理成功的编辑
+      await handleSuccessEdit(userId, instruction, images, res);
       
     } catch (error: any) {
-      console.error('新格式图片编辑请求失败:', error.message || error);
-      
-      // 记录失败操作到数据库
-      try {
-        // 创建失败的编辑记录
-        await EditRecordModel.create({
-          user_id: userId,
-          prompt: req.body.contents?.[0]?.parts?.find((p: any) => p.text)?.text || '',
-          input_images: JSON.stringify([{ type: 'base64_image' }]),
-          status: 2, // 2表示失败
-          cost: 0
-        });
-        
-        console.log('失败操作已记录到数据库');
-      } catch (dbError) {
-        console.error('记录失败操作到数据库失败:', dbError);
-      }
-      
-      // 处理错误响应
-      if (error.response) {
-        // 服务器返回了错误状态码
-        res.status(error.response.status || 500).json({
-          success: false,
-          message: 'API调用失败',
-          error: error.response.data || error.message
-        });
-      } else if (error.request) {
-        // 请求已发送但没有收到响应
-        res.status(504).json({
-          success: false,
-          message: 'API请求超时或无响应',
-          error: 'Network Error'
-        });
-      } else {
-        // 其他错误
-        res.status(500).json({
-          success: false,
-          message: '服务器内部错误',
-          error: error.message || 'Unknown Error'
-        });
-      }
+      // 处理失败的编辑
+      await handleFailedEdit(userId, req, res, error);
     }
   });
+}
+
+// 成功编辑
+async function handleSuccessEdit(userId: number, instruction: string, images: string[], res: Response) {
+  // 记录操作到数据库
+  try {
+    // 获取用户当前的编辑次数
+    const todayCount = await EditRecordModel.getUserTodayCount(userId);
+    // 获取余额
+    const balance = await UserBalanceModel.getBalance(userId);
+
+    // 创建编辑记录
+    const recordId = await EditRecordModel.create({
+      user_id: userId,
+      prompt: instruction,
+      input_images: JSON.stringify([{ type: 'base64_image' }]),
+      output_image: JSON.stringify(images),
+      status: 1, // 1表示成功
+      cost: 0 // 可以根据实际情况设置成本
+    });
+
+    if (todayCount >= Configure.freeEditCount) {
+      // 超过免费次数，创建扣款记录
+      const balance_after = balance - Configure.deductAmount;
+      await DeductRecordModel.create({
+        user_id: userId,
+        edit_record_id: recordId,
+        amount: Configure.deductAmount, // 每次扣款金额
+        balance_after // 假设扣款后余额为0
+      });
+      // 更新用户余额
+      await UserBalanceModel.update(userId, balance_after);
+    }
+    
+    console.log(`操作已成功记录到数据库，记录ID: ${recordId}`);
+  } catch (dbError) {
+    console.error('记录操作到数据库失败:', dbError);
+  }
+
+  res.json({
+    success: true,
+    message: '图片编辑请求处理成功',
+    data: {images}
+  });
+}
+
+// 失败编辑
+async function handleFailedEdit(userId: number, req: Request, res: Response, error: any) {
+  console.error('新格式图片编辑请求失败:', error.message || error);
+      
+  // 记录失败操作到数据库
+  try {
+    // 创建失败的编辑记录
+    await EditRecordModel.create({
+      user_id: userId,
+      prompt: req.body.contents?.[0]?.parts?.find((p: any) => p.text)?.text || '',
+      input_images: JSON.stringify([{ type: 'base64_image' }]),
+      status: 2, // 2表示失败
+      cost: 0
+    });
+    
+    console.log('失败操作已记录到数据库');
+  } catch (dbError) {
+    console.error('记录失败操作到数据库失败:', dbError);
+  }
+  
+  // 处理错误响应
+  if (error.response) {
+    // 服务器返回了错误状态码
+    res.status(error.response.status || 500).json({
+      success: false,
+      message: 'API调用失败',
+      error: error.response.data || error.message
+    });
+  } else if (error.request) {
+    // 请求已发送但没有收到响应
+    res.status(504).json({
+      success: false,
+      message: 'API请求超时或无响应',
+      error: 'Network Error'
+    });
+  } else {
+    // 其他错误
+    res.status(500).json({
+      success: false,
+      message: '服务器内部错误',
+      error: error.message || 'Unknown Error'
+    });
+  }
 }
 
 /**
@@ -302,76 +332,12 @@ export function setupGeminiImageGenerateRoute(app: Express): void {
       
       console.log("生成的图片URLs:", images);
       
-      // 记录操作到数据库
-      try {
-        // 创建编辑记录
-        const recordId = await EditRecordModel.create({
-          user_id: userId,
-          prompt: prompt,
-          input_images: JSON.stringify(imageUrls),
-          output_image: JSON.stringify(images),
-          status: 1, // 1表示成功
-          cost: 0 // 可以根据实际情况设置成本
-        });
-        
-        console.log(`操作已成功记录到数据库，记录ID: ${recordId}`);
-      } catch (dbError) {
-        console.error('记录操作到数据库失败:', dbError);
-        // 数据库错误不影响API响应返回
-      }
-      
-      res.json({
-        success: true,
-        message: 'Gemini图片生成请求处理成功',
-        data: {images}
-      });
+      // 处理成功的编辑
+      await handleSuccessEdit(userId, prompt, images, res);
       
     } catch (error: any) {
-        console.error('Gemini图片生成请求失败:', error.message || error);
-        
-        // 获取安全的prompt和imageUrls值
-        const safePrompt = req.body?.prompt || '';
-        const safeImageUrls = req.body?.imageUrls || [];
-        
-        // 记录失败操作到数据库
-        try {
-          // 创建失败的编辑记录
-          await EditRecordModel.create({
-            user_id: userId,
-            prompt: safePrompt,
-            input_images: JSON.stringify(safeImageUrls),
-            status: 2, // 2表示失败
-            cost: 0
-          });
-          
-          console.log('失败操作已记录到数据库');
-        } catch (dbError) {
-          console.error('记录失败操作到数据库失败:', dbError);
-        }
-      
-      // 处理错误响应
-      if (error.response) {
-        // 服务器返回了错误状态码
-        res.status(error.response.status || 500).json({
-          success: false,
-          message: 'Gemini API调用失败',
-          error: error.response.data || error.message
-        });
-      } else if (error.request) {
-        // 请求已发送但没有收到响应
-        res.status(504).json({
-          success: false,
-          message: 'Gemini API请求超时或无响应',
-          error: 'Network Error'
-        });
-      } else {
-        // 其他错误
-        res.status(500).json({
-          success: false,
-          message: '服务器内部错误',
-          error: error.message || 'Unknown Error'
-        });
-      }
+      // 处理失败的编辑
+      await handleFailedEdit(userId, req, res, error);
     }
   });
 }
@@ -478,73 +444,11 @@ export function setupEditImageRoute(app: Express): void {
       }
       console.log("images:", images);
       
-      // 记录操作到数据库
-      try {
-        // 创建编辑记录
-        const recordId = await EditRecordModel.create({
-          user_id: userId,
-          prompt: instruction,
-          input_images: JSON.stringify(imageUrls),
-          output_image: JSON.stringify(images),
-          status: 1, // 1表示成功
-          cost: 0 // 可以根据实际情况设置成本
-        });
-        
-        console.log(`操作已成功记录到数据库，记录ID: ${recordId}`);
-      } catch (dbError) {
-        console.error('记录操作到数据库失败:', dbError);
-        // 数据库错误不影响API响应返回
-      }
-      
-      // 返回API响应
-      res.json({
-        success: true,
-        message: '图片编辑请求处理成功',
-        data: {images}// response.data
-      });
-      
+      // 处理成功的编辑
+      await handleSuccessEdit(userId, instruction, images, res);
     } catch (error: any) {
-      console.error('图片编辑请求失败:', error.message || error);
-      
-      // 记录失败操作到数据库
-      try { 
-        // 创建失败的编辑记录
-        await EditRecordModel.create({
-          user_id: userId,
-          prompt: req.body.instruction || '',
-          input_images: JSON.stringify(req.body.imageUrls || []),
-          status: 2, // 2表示失败
-          cost: 0
-        });
-        
-        console.log('失败操作已记录到数据库');
-      } catch (dbError) {
-        console.error('记录失败操作到数据库失败:', dbError);
-      }
-      
-      // 处理错误响应
-      if (error.response) {
-        // 服务器返回了错误状态码
-        res.status(error.response.status || 500).json({
-          success: false,
-          message: 'API调用失败',
-          error: error.response.data || error.message
-        });
-      } else if (error.request) {
-        // 请求已发送但没有收到响应
-        res.status(504).json({
-          success: false,
-          message: 'API请求超时或无响应',
-          error: 'Network Error'
-        });
-      } else {
-        // 其他错误
-        res.status(500).json({
-          success: false,
-          message: '服务器内部错误',
-          error: error.message || 'Unknown Error'
-        });
-      }
+      // 处理失败的编辑
+      await handleFailedEdit(userId, req, res, error);
     }
   });
 }

@@ -192,11 +192,19 @@ export const EditRecordModel = {
 // 用户余额表操作
 export const UserBalanceModel = {
   /**
-   * 获取用户余额
+   * 获取用户余额记录
    */
   async findByUserId(userId: number): Promise<UserBalance | null> {
     const results = await queryDB('SELECT * FROM user_balance WHERE user_id = ?', [userId]);
     return results.length > 0 ? results[0] as UserBalance : null;
+  },
+
+  /**
+   * 获取用户余额数值
+   */
+  async getBalance(userId: number): Promise<number> {
+    const balanceRecord = await this.findByUserId(userId);
+    return balanceRecord ? balanceRecord.balance : 0;
   },
 
   /**
@@ -413,57 +421,3 @@ export const DeductRecordModel = {
     });
   }
 };
-
-/**
- * 事务操作：创建编辑记录并扣除余额
- */
-export async function createEditWithDeduct(
-  userId: number,
-  prompt: string,
-  inputImages: string[],
-  cost: number
-): Promise<{ success: boolean; editRecordId?: number; message?: string }> {
-  try {
-    return await transactionDB(async (connection) => {
-      // 1. 检查余额是否足够
-      const balanceQuery = 'SELECT balance FROM user_balance WHERE user_id = ? FOR UPDATE';
-      const balanceResults = await queryDB(balanceQuery, [userId]);
-      
-      if (balanceResults.length === 0) {
-        throw new Error('用户余额记录不存在');
-      }
-      
-      const currentBalance = balanceResults[0].balance;
-      if (currentBalance < cost) {
-        throw new Error('余额不足');
-      }
-      
-      // 2. 创建编辑记录
-      const inputImagesStr = inputImages.join(',');
-      const editRecordId = await EditRecordModel.create({
-        user_id: userId,
-        prompt,
-        input_images: inputImagesStr,
-        status: 0, // 处理中
-        cost
-      });
-      
-      // 3. 扣除余额
-      const deductSuccess = await UserBalanceModel.deduct(
-        userId,
-        cost,
-        editRecordId,
-        `图片编辑消耗 - 记录ID: ${editRecordId}`
-      );
-      
-      if (!deductSuccess) {
-        throw new Error('余额扣除失败');
-      }
-      
-      return { success: true, editRecordId };
-    });
-  } catch (error) {
-    console.error('创建编辑记录并扣款失败:', error);
-    return { success: false, message: error instanceof Error ? error.message : '操作失败' };
-  }
-}
