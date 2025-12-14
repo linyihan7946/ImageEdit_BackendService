@@ -8,6 +8,7 @@ import { WechatLoginParams } from './wechat-auth';
 import { setupEditImageRoute, setupEditImageNewRoute, setupGeminiImageGenerateRoute } from './edit-image';
 import { setupCosAuthRoute } from './cos-auth';
 import { EditRecordModel } from './models';
+import userRouter from './routes/user';
 import bodyParser from 'body-parser';
 import uploadRouter from './routes/upload';
 import configRouter from './routes/config';
@@ -60,17 +61,6 @@ app.post('/api/wechat/login', async (req: Request, res: Response) => {
   }
 });
 
-// 测试需要认证的路由
-app.get('/api/user/info', authMiddleware(), (req: Request, res: Response) => {
-  // @ts-ignore
-  const userInfo = req.user;
-  return res.json({
-    success: true,
-    message: '已成功认证',
-    user: userInfo
-  });
-});
-
 // 接收图片链接的POST请求
 app.post('/process-image', (req: Request, res: Response) => {
   console.log('收到处理图片的POST请求');
@@ -118,38 +108,8 @@ setupGeminiImageGenerateRoute(app);
 // 设置COS授权路由
 setupCosAuthRoute(app);
 
-// 获取用户今日使用次数
-app.get('/api/user/today-usage', authMiddleware(), async (req: Request, res: Response) => {
-  try {
-    
-    // @ts-ignore
-    const userId = req.user?.userId || 0;
-    
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: '用户未登录'
-      });
-    }
-    
-    // 获取用户今日编辑次数
-    const todayCount = await EditRecordModel.getUserTodayCount(userId);
-    
-    res.json({
-      success: true,
-      data: {
-        todayUsage: todayCount,
-        maxFreeUsage: 3
-      }
-    });
-  } catch (error) {
-    console.error('获取用户今日使用次数失败:', error);
-    res.status(500).json({
-      success: false,
-      message: '获取使用次数失败'
-    });
-  }
-});
+// 用户相关路由
+app.use('/api/user', userRouter);
 
 
 
