@@ -60,7 +60,7 @@ router.get('/info', authMiddleware(), async (req: Request, res: Response) => {
     }
     
     // 返回用户信息（排除敏感字段）
-    const { id, nickname, avatar_url, register_time, last_login_time, status } = userInfo;
+    const { id, nickname, avatar_url, register_time, last_login_time, status, phone } = userInfo;
     
     res.json({
       success: true,
@@ -70,7 +70,8 @@ router.get('/info', authMiddleware(), async (req: Request, res: Response) => {
         avatarUrl: avatar_url,
         registerTime: register_time,
         lastLoginTime: last_login_time,
-        status
+        status,
+        phone
       }
     });
   } catch (error) {

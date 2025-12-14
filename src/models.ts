@@ -11,6 +11,7 @@ export interface User {
   register_time: Date;
   last_login_time?: Date;
   status: number; // 0 - 正常，1 - 封禁
+  phone?: string;// 电话号码
 }
 
 /**
