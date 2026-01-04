@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { DeductRecordModel, EditRecordModel, UserBalanceModel } from './models';
 import { cosUploader } from './cos-upload';
-import { base64ToImage, getImageMimeTypeFromUrl, imageUrlToBase64, imageUrlToBase64Simple } from './image-utils';
+import { getImageMimeTypeFromUrl, imageUrlToBase64Simple } from './image-utils';
 import { authMiddleware } from './wechat-auth';
 import { Configure } from './configure';
 
@@ -276,7 +276,7 @@ export function setupGeminiImageGenerateRoute(app: Express): void {
             "data": base64ImageData
           }
         });
-        console.log(`✅ 图片 ${i + 1} (${mime_type})`);
+        console.log(`✅ 图片 ${i + 1} (${mime_type}) (${imageUrl})`);
       }
       
       // 添加编辑指令
