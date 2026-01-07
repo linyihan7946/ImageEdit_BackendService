@@ -13,6 +13,16 @@ const API_ENDPOINT = process.env.API_ENDPOINT as string || '';
 const API_EDITIMAGE_NEW = process.env.API_EDITIMAGE_NEW as string || '';
 const API_GEMINI_PRO_IMAGE = process.env.API_GEMINI_PRO_IMAGE as string || '';
 
+/**
+ * 编辑图片的类型
+ */
+export enum EditImageType {
+  WatermarkRemove = 1,// 去水印
+  CreativeImage = 2,// 创意图片
+  DishIngredient = 3,// 菜品用料图
+  PhotoRestoration = 4,// 照片修复
+}
+
 // 确保图片保存目录存在
 const IMAGES_DIR = path.join(__dirname, '../images');
 if (!fs.existsSync(IMAGES_DIR)) {
@@ -22,7 +32,7 @@ if (!fs.existsSync(IMAGES_DIR)) {
 
 
 /**
- * 新的编辑图片的接口：指定长宽比
+ * 【edit-image-new】新的编辑图片的接口：指定长宽比
  * @param app 
  */
 export function setupEditImageNewRoute(app: Express): void {
@@ -33,11 +43,11 @@ export function setupEditImageNewRoute(app: Express): void {
     
     const req1: any = req;
     const userId = req1.user?.userId || 0;
+    const { instruction, aspectRatio, imageUrls, editType = EditImageType.WatermarkRemove } = req.body;
     try {
       // 从请求体中获取参数
       // mime_type:  "image/jpeg"
       // aspectRatio: "16:9"
-      const { instruction, aspectRatio, imageUrls } = req.body;
       
       if (!instruction) {
         return res.status(400).json({ 
@@ -128,17 +138,17 @@ export function setupEditImageNewRoute(app: Express): void {
       console.log("生成的图片URLs:", images);
       
       // 处理成功的编辑
-      await handleSuccessEdit(userId, instruction, images, res);
+      await handleSuccessEdit(userId, instruction, images, editType, res);
       
     } catch (error: any) {
       // 处理失败的编辑
-      await handleFailedEdit(userId, req, res, error);
+      await handleFailedEdit(userId, editType, req, res, error);
     }
   });
 }
 
 // 成功编辑
-async function handleSuccessEdit(userId: number, instruction: string, images: string[], res: Response) {
+async function handleSuccessEdit(userId: number, instruction: string, images: string[], editType: EditImageType, res: Response) {
   // 记录操作到数据库
   try {
     // 获取用户当前的编辑次数
@@ -152,6 +162,7 @@ async function handleSuccessEdit(userId: number, instruction: string, images: st
       prompt: instruction,
       input_images: JSON.stringify([{ type: 'base64_image' }]),
       output_image: JSON.stringify(images),
+      edit_image_type: editType,
       status: 1, // 1表示成功
       cost: 0 // 可以根据实际情况设置成本
     });
@@ -182,7 +193,7 @@ async function handleSuccessEdit(userId: number, instruction: string, images: st
 }
 
 // 失败编辑
-async function handleFailedEdit(userId: number, req: Request, res: Response, error: any) {
+async function handleFailedEdit(userId: number, editType: EditImageType, req: Request, res: Response, error: any) {
   console.error('新格式图片编辑请求失败:', error.message || error);
       
   // 记录失败操作到数据库
@@ -192,6 +203,7 @@ async function handleFailedEdit(userId: number, req: Request, res: Response, err
       user_id: userId,
       prompt: req.body.contents?.[0]?.parts?.find((p: any) => p.text)?.text || '',
       input_images: JSON.stringify([{ type: 'base64_image' }]),
+      edit_image_type: editType,
       status: 2, // 2表示失败
       cost: 0
     });
@@ -227,7 +239,7 @@ async function handleFailedEdit(userId: number, req: Request, res: Response, err
 }
 
 /**
- * Gemini 3 Pro图片生成接口：支持多张图片合成
+ * 【gemini-image-generate】Gemini 3 Pro图片生成接口：支持多张图片合成
  * @param app 
  */
 export function setupGeminiImageGenerateRoute(app: Express): void {
@@ -238,9 +250,9 @@ export function setupGeminiImageGenerateRoute(app: Express): void {
     
     const req1: any = req;
     const userId = req1.user?.userId || 0;
+    // 从请求体中获取参数
+    const { prompt, imageUrls, aspectRatio = '16:9', imageSize = '2K', editType = EditImageType.CreativeImage } = req.body;
     try {
-      // 从请求体中获取参数
-      const { prompt, imageUrls, aspectRatio = '16:9', imageSize = '2K' } = req.body;
       
       if (!prompt) {
         return res.status(400).json({ 
@@ -333,17 +345,17 @@ export function setupGeminiImageGenerateRoute(app: Express): void {
       console.log("生成的图片URLs:", images);
       
       // 处理成功的编辑
-      await handleSuccessEdit(userId, prompt, images, res);
+      await handleSuccessEdit(userId, prompt, images, editType, res);
       
     } catch (error: any) {
       // 处理失败的编辑
-      await handleFailedEdit(userId, req, res, error);
+      await handleFailedEdit(userId, editType, req, res, error);
     }
   });
 }
 
 /**
- * 设置图片编辑路由
+ * 【edit-image】设置图片编辑路由
  * @param app Express应用实例
  */
 export function setupEditImageRoute(app: Express): void {
@@ -354,9 +366,9 @@ export function setupEditImageRoute(app: Express): void {
     
     const req1: any = req;
     const userId = req1.user?.userId || 0;
+    // 从请求体中获取参数
+    const { instruction, imageUrls, editType = EditImageType.WatermarkRemove } = req.body;
     try {
-      // 从请求体中获取参数
-      const { instruction, imageUrls } = req.body;
       
       // 验证必要参数
       if (!instruction) {
@@ -445,10 +457,10 @@ export function setupEditImageRoute(app: Express): void {
       console.log("images:", images);
       
       // 处理成功的编辑
-      await handleSuccessEdit(userId, instruction, images, res);
+      await handleSuccessEdit(userId, instruction, images, editType, res);
     } catch (error: any) {
       // 处理失败的编辑
-      await handleFailedEdit(userId, req, res, error);
+      await handleFailedEdit(userId, editType, req, res, error);
     }
   });
 }

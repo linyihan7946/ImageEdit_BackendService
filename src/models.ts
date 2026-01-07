@@ -1,4 +1,5 @@
 import { queryDB, insertDB, updateDB, deleteDB, transactionDB } from './database';
+import { EditImageType } from './edit-image';
 
 /**
  * 用户表类型定义
@@ -23,6 +24,7 @@ export interface EditRecord {
   prompt: string;
   input_images: string;
   output_image?: string;
+  edit_image_type: EditImageType;
   status: number; // 0 - 处理中，1 - 成功，2 - 失败
   cost: number;
   created_time: Date;
