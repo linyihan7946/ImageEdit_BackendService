@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS user (
   avatar_url VARCHAR(255),
   last_login_time DATETIME,
   status TINYINT DEFAULT 0,
+  phone VARCHAR(11),
   register_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -16,10 +17,11 @@ CREATE TABLE IF NOT EXISTS edit_record (
   prompt TEXT NOT NULL,
   input_images TEXT,
   output_image TEXT,
+  edit_image_type INT,
   status TINYINT DEFAULT 0,
   cost DECIMAL(10,2) DEFAULT 0,
   created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  completed_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  completed_time TIMESTAMP DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 创建用户余额表
@@ -41,6 +43,19 @@ CREATE TABLE IF NOT EXISTS deduct_record (
   remark VARCHAR(255)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 创建充值记录表（新增）
+CREATE TABLE IF NOT EXISTS recharge_record (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT NOT NULL,
+  amount DECIMAL(10,2) NOT NULL,
+  balance_after DECIMAL(10,2) NOT NULL,
+  payment_transaction_id VARCHAR(100) NOT NULL, -- 支付交易ID
+  status TINYINT DEFAULT 0, -- 0 - 待支付，1 - 成功，2 - 失败
+  created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  completed_time TIMESTAMP NULL, -- 完成时间，初始为NULL
+  remark VARCHAR(255)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- 创建系统配置表
 CREATE TABLE IF NOT EXISTS system_config (
   id INT PRIMARY KEY AUTO_INCREMENT,
@@ -59,6 +74,8 @@ CREATE INDEX idx_user_balance_user_id ON user_balance(user_id);
 CREATE INDEX idx_deduct_record_user_id ON deduct_record(user_id);
 CREATE INDEX idx_deduct_record_edit_id ON deduct_record(edit_record_id);
 CREATE INDEX idx_system_config_key ON system_config(config_key);
+CREATE INDEX idx_recharge_record_user_id ON recharge_record(user_id);
+CREATE INDEX idx_recharge_record_transaction_id ON recharge_record(payment_transaction_id);
 
 -- 插入系统配置默认值
 INSERT INTO system_config (config_key, config_value, description) VALUES
