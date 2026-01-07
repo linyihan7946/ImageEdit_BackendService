@@ -43,3 +43,6 @@ coverage/
 
 # 图片文件夹
 images/
+
+# 批出来文件
+deploy.sh
