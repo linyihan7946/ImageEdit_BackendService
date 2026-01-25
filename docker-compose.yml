@@ -46,10 +46,10 @@ services:
     ports:
       - "3306:3306"
     networks:
-      - app-network
+      - image-edit-network
 
 networks:
-  app-network:
+  image-edit-network:
     driver: bridge
 
 volumes:
