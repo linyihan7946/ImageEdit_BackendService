@@ -29,7 +29,7 @@ services:
     depends_on:
       - mysql
     networks:
-      - app-network
+      - image-edit-net
 
   mysql:
     image: mysql:8.4.6
